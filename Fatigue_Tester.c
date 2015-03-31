@@ -131,7 +131,7 @@ int main (int argc,char *argv[])
   	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu),helpmenu);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menubar),rootmenu);
   	
-
+//haha
 
 	gtk_window_add_accel_group(GTK_WINDOW(window),accel_group);
   	gtk_container_add(GTK_CONTAINER(window),vbox);
