@@ -3,9 +3,10 @@
 
 struct EntryStruct  
 {  
-    GtkEntry *entry1;  
-    GtkSpinButton *spin_int;  
+    	GtkEntry * IP;  
+	GtkEntry * Port;   
 };  
+
 
 /* Stop the GTK+ main loop function. */
 static void destroy (GtkWidget *window,gpointer data)
@@ -15,27 +16,22 @@ static void destroy (GtkWidget *window,gpointer data)
 
 void on_menu_activate(GtkMenuItem* item,gpointer data)
 {
-   g_print("menuitem %s is pressed.\n",(gchar*)data);
+   	g_print("menuitem %s is pressed.\n",(gchar*)data);
 }
 
 void on_button1_clicked(GtkButton *button,gpointer user_data)
 {	
-    gchar *serv_ip;
-    gint serv_port;
     int res;
-    struct EntryStruct *entry = (struct EntryStruct*) user_data;  
-    GtkEntry *entry1 = (GtkEntry*) entry->entry1;  
-    GtkSpinButton *spin_int = (GtkSpinButton*) entry->spin_int;    
-    serv_ip=(gchar *)gtk_entry_get_text((GtkEntry*) entry1);  
-    serv_port=gtk_spin_button_get_value_as_int((GtkSpinButton*) spin_int);
+    struct EntryStruct *entry = (struct EntryStruct *)user_data;  
+    const gchar *serv_ip = gtk_entry_get_text(GTK_ENTRY(entry->IP));
+    const gchar *serv_port= gtk_entry_get_text(GTK_ENTRY(entry->Port));
+    g_print ("IP: %s\n", serv_ip);
+    g_print ("Port: %s\n", serv_port);
 }
 
 int main (int argc,char *argv[])
 {
 	GtkWidget *window;
-	GtkWidget *entry1;
-	GtkWidget *spin_int;
-	GtkAdjustment *integer;
 	GtkWidget *label1;
 	GtkWidget *label2;	
 	GtkWidget *button1;
@@ -51,30 +47,28 @@ int main (int argc,char *argv[])
   	GtkWidget* menuitem;
   	GtkAccelGroup* accel_group;
 
-        struct EntryStruct entries; 
-
 	gtk_init (&argc, &argv);
+	struct EntryStruct entries;
 
-	integer = GTK_ADJUSTMENT (gtk_adjustment_new (1000.0, 0.0, 8888.0, 1.0, 2.0, 2.0));
 
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_title (GTK_WINDOW (window), "Login");
+	gtk_window_set_title (GTK_WINDOW (window), "MainWindow");
 	gtk_container_set_border_width (GTK_CONTAINER (window), 0);
-	gtk_widget_set_size_request (window, 600, 75);	
+	gtk_widget_set_size_request (window, 1000, 75);	
 	g_signal_connect (G_OBJECT (window), "destroy",G_CALLBACK (destroy), NULL);
 
-    	vbox=gtk_box_new(GTK_ORIENTATION_VERTICAL,3); 
-	hbox1=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,3);
-	hbox2=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,3); 
+    	vbox=gtk_box_new(GTK_ORIENTATION_VERTICAL,5); 
+	hbox1=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,5);
+	hbox2=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,5); 
 
 	label1 = gtk_label_new ("IP:");
 	label2 = gtk_label_new ("Port:");
-	entry1 = gtk_entry_new ();
-	spin_int = gtk_spin_button_new (integer, 1.0, 0);
+	entries.IP = (GtkEntry*)gtk_entry_new ();
+	entries.Port = (GtkEntry*)gtk_entry_new ();
 	
 	button1 = gtk_button_new_with_label ("Connect");
 	gtk_button_set_relief (GTK_BUTTON (button1), GTK_RELIEF_NONE);
-        g_signal_connect(G_OBJECT(button1), "clicked", G_CALLBACK(on_button1_clicked),(gpointer)&entries); 
+        g_signal_connect(G_OBJECT(button1), "clicked", G_CALLBACK(on_button1_clicked),(gpointer) &entries); 
 	/* Create a new button that has a mnemonic key of Alt+C. */
 	button2 = gtk_button_new_with_mnemonic ("_Close");
 	gtk_button_set_relief (GTK_BUTTON (button2), GTK_RELIEF_NONE);
@@ -130,19 +124,17 @@ int main (int argc,char *argv[])
   	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 关于 "));
   	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu),helpmenu);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menubar),rootmenu);
-  	
-//haha
+
 
 	gtk_window_add_accel_group(GTK_WINDOW(window),accel_group);
   	gtk_container_add(GTK_CONTAINER(window),vbox);
-	gtk_box_pack_start(GTK_BOX(vbox),hbox1,FALSE,FALSE,0);
+	gtk_box_pack_start(GTK_BOX(vbox),menubar,FALSE,FALSE,0);
 	gtk_box_pack_start(GTK_BOX(vbox),hbox1,FALSE,FALSE,0);
 	gtk_box_pack_start(GTK_BOX(vbox),hbox2,FALSE,FALSE,0);
-	gtk_box_pack_start(GTK_BOX(vbox),menubar,FALSE,FALSE,0);
 	gtk_box_pack_start(GTK_BOX(hbox1),label1,FALSE,FALSE,5);
-	gtk_box_pack_start(GTK_BOX(hbox1),entry1,FALSE,FALSE,5);
+	gtk_box_pack_start(GTK_BOX(hbox1),GTK_WIDGET(entries.IP),FALSE,FALSE,5);
 	gtk_box_pack_start(GTK_BOX(hbox1),label2,FALSE,FALSE,5);
-	gtk_box_pack_start(GTK_BOX(hbox1),spin_int,FALSE,FALSE,5);
+	gtk_box_pack_start(GTK_BOX(hbox1),GTK_WIDGET(entries.Port),FALSE,FALSE,5);
 	gtk_box_pack_start(GTK_BOX(hbox2),button1,FALSE,FALSE,5);
 	gtk_box_pack_start(GTK_BOX(hbox2),button2,FALSE,FALSE,5);
 
