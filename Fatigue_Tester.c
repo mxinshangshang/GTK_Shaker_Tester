@@ -67,7 +67,7 @@ int build_socket(const char *serv_ip,const char *serv_port)
 	}
 	bzero(&saddr,sizeof(saddr));
 	saddr.sin_family=AF_INET;
-	saddr.sin_port=htons(*serv_port);
+	saddr.sin_port=htons(atoi(serv_port));
 	res=inet_pton(AF_INET,serv_ip,&saddr.sin_addr);
 	if(res==0){ /* the serv_ip is invalid */
 		return 1;
