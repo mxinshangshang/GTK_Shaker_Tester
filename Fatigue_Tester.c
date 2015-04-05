@@ -21,13 +21,43 @@ int sockfd;
 int issucceed=-1;
 struct sockaddr_in saddr;
 #define MAXSIZE 1024 
+GtkTextBuffer *show_buffer,*input_buffer;  
 
-/*void show_err(char *err)
+void show_err(char *err)
 {
 	GtkTextIter start,end;
 	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(show_buffer),&start,&end);
 	gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,err,strlen(err));
-}*/
+}
+
+/* show the received message */  
+void show_remote_text(char rcvd_mess[])  
+{  
+    GtkTextIter start,end;  
+    gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(show_buffer),&start,&end);/*获得缓冲区开始和结束位置的Iter*/  
+    gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,"Server:\n",8);/*插入文本到缓冲区*/  
+    gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,rcvd_mess,strlen(rcvd_mess));/*插入文本到缓冲区*/  
+    gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,"\n",1);/*插入换行到缓冲区*/  
+} 
+
+/* show the input text */
+void show_local_text(const gchar* text)
+{
+	GtkTextIter start,end;
+	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(show_buffer),&start,&end);/*获得缓冲区开始和结束位置的Iter*/
+	gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,"Me:\n",4);/*插入文本到缓冲区*/
+	gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,text,strlen(text));/*插入文本到缓冲区*/
+	gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,"\n",1);/*插入文本到缓冲区*/
+}
+
+/* clean the input text */
+void on_cls_button_clicked()
+{
+	GtkTextIter start,end;
+	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(input_buffer),&start,&end);/*获得缓冲区开始和结束位置的Iter*/
+	gtk_text_buffer_delete(GTK_TEXT_BUFFER(input_buffer),&start,&end);/*插入到缓冲区*/
+}
+
 /* a new thread,to receive message */
 void *recv_func(void *arg)/*recv_func(void *arg)*/
 {     
@@ -41,9 +71,8 @@ void *recv_func(void *arg)/*recv_func(void *arg)*/
 			perror("server recv error\n");
 			exit(1);
 		}
-		//show_remote_text(rcvd_mess);  
-                //show(rcvd_mess);
-		g_print ("Port: %s\n", rcvd_mess);
+		show_remote_text(rcvd_mess);  
+		//g_print ("Port: %s\n", rcvd_mess);
 	}
 }
 /* build socket connection */
@@ -102,7 +131,7 @@ int build_socket(const char *serv_ip,const char *serv_port)
         }
 	return 0;
 }
-/* send function 
+/* send function */
 void send_func(const char *text)
 {
 	int n;
@@ -113,7 +142,39 @@ void send_func(const char *text)
 		perror("S send error\n");
 		exit(1);
 	}
-}*/
+}
+
+/* get the input text,and send it */
+void on_send_button_clicked()
+{
+	GtkTextIter start,end;
+	gchar *text;
+ 	if(issucceed==-1){ /* Haven't create a socket */
+ 		show_err("Not connected...\n");
+	}
+	else
+	{ /* Socket creating has succeed ,so send message */
+		text=(gchar *)malloc(MAXSIZE);
+		if(text==NULL)
+		{
+			printf("Malloc error!\n");
+			exit(1);
+		}
+		/* get text */
+		gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(input_buffer),&start,&end);
+		text=gtk_text_buffer_get_text(GTK_TEXT_BUFFER(input_buffer),&start,&end,FALSE);
+		/* If there is no input,do nothing but return */
+		if(strcmp(text,"")!=0)
+		{
+			send_func(text);
+			on_cls_button_clicked();
+			show_local_text(text);
+		}
+		else
+			show_err("The message can not be empty...\n");
+		free(text);
+	}
+}
 
 /* Stop the GTK+ main loop function. */
 static void destroy (GtkWidget *window,gpointer data)
@@ -152,20 +213,23 @@ int main (int argc,char *argv[])
 	GtkWidget *window;
 	GtkWidget *label1;
 	GtkWidget *label2;	
-	GtkWidget *button1;
-	GtkWidget *button2;
-	GtkWidget* vbox;
-	GtkWidget* hbox1;
-	GtkWidget* hbox2;
-	GtkWidget* table;
-  	GtkWidget* menubar;
+	GtkWidget *conn_button;
+	GtkWidget *close_button;
+	GtkWidget *rece_view;
+	GtkWidget *send_view;
+	GtkWidget *send_button;
+	GtkWidget* drawarea;
+  	
+	GtkWidget* menubar;
   	GtkWidget* menu;
   	GtkWidget* editmenu;
   	GtkWidget* helpmenu;
   	GtkWidget* rootmenu;
   	GtkWidget* menuitem;
   	GtkAccelGroup* accel_group;
-	GtkWidget* drawarea;
+	
+	GtkWidget* grid;
+	GtkWidget *scrolled1,*scrolled2;
 
 
 	gtk_init (&argc, &argv);
@@ -175,32 +239,49 @@ int main (int argc,char *argv[])
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title (GTK_WINDOW (window), "MainWindow");
 	gtk_container_set_border_width (GTK_CONTAINER (window), 0);
-	gtk_widget_set_size_request (window, 1000, 600);	
+	gtk_widget_set_size_request (window, 1000, 750);	
 	g_signal_connect (G_OBJECT (window), "destroy",G_CALLBACK (destroy), NULL);
 
-    	vbox=gtk_box_new(GTK_ORIENTATION_VERTICAL,5); 
-	hbox1=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,5);
-	hbox2=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,5); 
-	table = gtk_table_new(2, 2, FALSE);
-
-
+	grid=gtk_grid_new ();
 
 	label1 = gtk_label_new ("IP:");
 	label2 = gtk_label_new ("Port:");
 	entries.IP = (GtkEntry*)gtk_entry_new ();
 	entries.Port = (GtkEntry*)gtk_entry_new ();
-	
+	rece_view = gtk_text_view_new ();
+	send_view = gtk_text_view_new ();
+	send_button= gtk_button_new_with_label ("Send");
 
+	rece_view=gtk_text_view_new();  
+    	send_view=gtk_text_view_new();  
+ 
+    	/* get the buffer of textbox */  
+    	show_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(rece_view));  
+    	input_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(send_view));  
+    	/* set textbox to diseditable */  
+    	gtk_text_view_set_editable(GTK_TEXT_VIEW(rece_view),FALSE);  
+    	/* scroll window */  
+    	scrolled1=gtk_scrolled_window_new(NULL,NULL);  
+    	scrolled2=gtk_scrolled_window_new(NULL,NULL);  
+    	/* create a textbox */  
+    	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled1),rece_view);  
+    	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled2),send_view);  
+    	/* setting of window */  
+    	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled1),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);  
+    	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled2),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC); 
+	g_signal_connect(G_OBJECT(send_button), "clicked", G_CALLBACK(on_send_button_clicked),NULL);
+
+	
 	drawarea = gtk_drawing_area_new();
 
 	
-	button1 = gtk_button_new_with_label ("Connect");
-	gtk_button_set_relief (GTK_BUTTON (button1), GTK_RELIEF_NONE);
-        g_signal_connect(G_OBJECT(button1), "clicked", G_CALLBACK(on_button1_clicked),(gpointer) &entries); 
+	conn_button = gtk_button_new_with_label ("Connect");
+	gtk_button_set_relief (GTK_BUTTON (conn_button), GTK_RELIEF_NONE);
+        g_signal_connect(G_OBJECT(conn_button), "clicked", G_CALLBACK(on_button1_clicked),(gpointer) &entries); 
 	/* Create a new button that has a mnemonic key of Alt+C. */
-	button2 = gtk_button_new_with_mnemonic ("_Close");
-	gtk_button_set_relief (GTK_BUTTON (button2), GTK_RELIEF_NONE);
-	g_signal_connect_swapped (G_OBJECT (button2), "clicked",G_CALLBACK (gtk_widget_destroy),(gpointer) window);
+	close_button = gtk_button_new_with_mnemonic ("_Close");
+	gtk_button_set_relief (GTK_BUTTON (close_button), GTK_RELIEF_NONE);
+	g_signal_connect_swapped (G_OBJECT (close_button), "clicked",G_CALLBACK (gtk_widget_destroy),(gpointer) window);
 
 	accel_group=gtk_accel_group_new();
 
@@ -255,18 +336,25 @@ int main (int argc,char *argv[])
 
 
 	gtk_window_add_accel_group(GTK_WINDOW(window),accel_group);
-  	gtk_container_add(GTK_CONTAINER(window),vbox);
-	gtk_box_pack_start(GTK_BOX(vbox),menubar,FALSE,FALSE,0);
-	gtk_box_pack_start(GTK_BOX(vbox),hbox1,FALSE,FALSE,0);
-	gtk_box_pack_start(GTK_BOX(vbox),hbox2,FALSE,FALSE,0);
-	gtk_box_pack_start(GTK_BOX(vbox),table,FALSE,FALSE,0);
-	gtk_box_pack_start(GTK_BOX(hbox1),label1,FALSE,FALSE,5);
-	gtk_box_pack_start(GTK_BOX(hbox1),GTK_WIDGET(entries.IP),FALSE,FALSE,5);
-	gtk_box_pack_start(GTK_BOX(hbox1),label2,FALSE,FALSE,5);
-	gtk_box_pack_start(GTK_BOX(hbox1),GTK_WIDGET(entries.Port),FALSE,FALSE,5);
-	gtk_box_pack_start(GTK_BOX(hbox2),button1,FALSE,FALSE,5);
-	gtk_box_pack_start(GTK_BOX(hbox2),button2,FALSE,FALSE,5);
-	gtk_table_attach(GTK_TABLE(table),drawarea, 0, 2, 0, 1,GTK_EXPAND, GTK_SHRINK, 0, 0);
+
+	//gtk_grid_set_column_homogeneous(GTK_GRID(grid),FALSE);
+	gtk_grid_attach (GTK_GRID (grid), menubar, 0, 0,1000, 30);
+	gtk_grid_attach (GTK_GRID (grid),  label1, 0, 50, 50, 30);
+	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries.IP), 50, 50, 100, 30);
+	gtk_grid_attach (GTK_GRID (grid),  label2, 150, 50, 50, 40);
+	gtk_grid_attach (GTK_GRID (grid), GTK_WIDGET(entries.Port), 200, 50, 100, 30);
+	gtk_grid_attach (GTK_GRID (grid),  conn_button, 0, 100, 100, 30);
+	gtk_grid_attach (GTK_GRID (grid),  close_button, 100, 100, 100, 30);
+	gtk_grid_attach (GTK_GRID (grid),  drawarea, 0, 150, 700, 600);
+	//gtk_grid_attach (GTK_GRID (grid),  rece_view, 700, 150, 250, 100);
+	gtk_grid_attach (GTK_GRID (grid),  scrolled1, 700, 150, 250, 100);
+	//gtk_grid_attach (GTK_GRID (grid),  send_view, 700, 300, 250, 100);
+	gtk_grid_attach (GTK_GRID (grid),  scrolled2, 700, 300, 250, 100);
+	gtk_grid_attach (GTK_GRID (grid),  send_button, 700, 500, 100, 30);
+
+	gtk_grid_set_row_spacing(GTK_GRID(grid),1);
+	gtk_grid_set_column_spacing (GTK_GRID(grid),1);
+	gtk_container_add (GTK_CONTAINER (window), grid);
 
 
 	gtk_widget_show_all (window);
