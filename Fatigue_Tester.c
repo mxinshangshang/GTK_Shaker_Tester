@@ -22,6 +22,75 @@ int issucceed=-1;
 struct sockaddr_in saddr;
 #define MAXSIZE 1024 
 GtkTextBuffer *show_buffer,*input_buffer;  
+gboolean timer = TRUE;
+/* Pixmap for scribble area, to store current scribbles */
+static cairo_surface_t *surface = NULL;
+//static cairo_surface_t *surfaceL = NULL;
+//static cairo_surface_t *surfaceB = NULL;
+
+/* Create a new surface of the appropriate size to store our scribbles */
+static gboolean
+draw_configure_event (GtkWidget         *widget,
+                          GdkEventConfigure *event,
+                          gpointer           data)
+{
+  GtkAllocation allocation;
+  cairo_t *cr;
+
+  if (surface)
+    cairo_surface_destroy (surface);
+
+  gtk_widget_get_allocation (widget, &allocation);
+  surface = gdk_window_create_similar_surface (gtk_widget_get_window (widget),
+                                               CAIRO_CONTENT_COLOR,
+                                               allocation.width,
+                                               allocation.height);
+
+  /* Initialize the surface to white */
+  cr = cairo_create (surface);
+
+  cairo_set_source_rgb (cr, 1, 1, 1);
+  cairo_paint (cr);
+
+  cairo_destroy (cr);
+
+  /* We've handled the configure event, no need for further processing. */
+  return TRUE;
+}
+
+/* Redraw the screen from the surface */
+static gboolean
+draw_callback (GtkWidget *widget,
+               cairo_t   *cr,
+               gpointer   data)
+{
+  	//cairo_set_source_surface (cr, surface, 0, 0);
+  	//cairo_paint (cr);
+	//cairo_t *cr;
+   	cairo_set_source_surface (cr, surface, 0, 0);
+   	cairo_paint (cr);
+   	cairo_set_source_rgb(cr,0,0,0); 
+	cairo_set_line_width(cr,2);
+	cairo_move_to(cr, 0, 0);
+	cairo_line_to(cr, 100, 100);
+
+        cairo_stroke(cr);
+//        cairo_destroy(cr);
+        
+  	return FALSE;
+}
+
+
+gboolean time_handler (GtkWidget *widget)
+{
+  if (surface == NULL) return FALSE;
+ 
+  if (!timer) return FALSE;
+ 
+  gtk_widget_queue_draw_area(widget,0,0,600,450);
+  return TRUE;
+}
+
 
 void show_err(char *err)
 {
@@ -218,7 +287,9 @@ int main (int argc,char *argv[])
 	GtkWidget *rece_view;
 	GtkWidget *send_view;
 	GtkWidget *send_button;
-	GtkWidget* drawarea;
+	GtkWidget* da;
+	//GtkWidget* daLeft;
+	//GtkWidget* daBottom;
   	
 	GtkWidget* menubar;
   	GtkWidget* menu;
@@ -239,7 +310,7 @@ int main (int argc,char *argv[])
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title (GTK_WINDOW (window), "MainWindow");
 	gtk_container_set_border_width (GTK_CONTAINER (window), 0);
-	gtk_widget_set_size_request (window, 1000, 750);	
+	gtk_widget_set_size_request (window, 800, 600);	
 	g_signal_connect (G_OBJECT (window), "destroy",G_CALLBACK (destroy), NULL);
 
 	grid=gtk_grid_new ();
@@ -254,6 +325,25 @@ int main (int argc,char *argv[])
 
 	rece_view=gtk_text_view_new();  
     	send_view=gtk_text_view_new();  
+
+	//frame = gtk_frame_new (NULL);
+	//gtk_frame_set_shadow_type (GTK_FRAME (frame), GTK_SHADOW_IN);
+	da = gtk_drawing_area_new();
+	//daLeft = gtk_drawing_area_new();
+	//daBottom = gtk_drawing_area_new();
+      	/* set a minimum size */
+      	//gtk_widget_set_size_request (drawarea, 690, 600);
+	//gtk_widget_set_size_request (daLeft, 690, 600);
+	//gtk_widget_set_size_request (daBottom, 690, 600);
+      	//gtk_container_add (GTK_CONTAINER (frame), drawarea);
+  	//gtk_widget_set_size_request (daBottom, 100, 50);
+ 	//gtk_widget_set_events (G_OBJECT(daBottom), GDK_EXPOSURE_MASK);
+	g_signal_connect (G_OBJECT(da), "draw",G_CALLBACK (draw_callback), NULL);
+      	g_signal_connect (G_OBJECT(da),"configure-event",G_CALLBACK (draw_configure_event), NULL);
+        g_timeout_add(100, (GSourceFunc) time_handler, (gpointer) da);
+
+
+
  
     	/* get the buffer of textbox */  
     	show_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(rece_view));  
@@ -272,14 +362,11 @@ int main (int argc,char *argv[])
 	g_signal_connect(G_OBJECT(send_button), "clicked", G_CALLBACK(on_send_button_clicked),NULL);
 
 	
-	drawarea = gtk_drawing_area_new();
-
-	
 	conn_button = gtk_button_new_with_label ("Connect");
 	gtk_button_set_relief (GTK_BUTTON (conn_button), GTK_RELIEF_NONE);
         g_signal_connect(G_OBJECT(conn_button), "clicked", G_CALLBACK(on_button1_clicked),(gpointer) &entries); 
 	/* Create a new button that has a mnemonic key of Alt+C. */
-	close_button = gtk_button_new_with_mnemonic ("_Close");
+	close_button = gtk_button_new_with_mnemonic ("Close");
 	gtk_button_set_relief (GTK_BUTTON (close_button), GTK_RELIEF_NONE);
 	g_signal_connect_swapped (G_OBJECT (close_button), "clicked",G_CALLBACK (gtk_widget_destroy),(gpointer) window);
 
@@ -337,20 +424,22 @@ int main (int argc,char *argv[])
 
 	gtk_window_add_accel_group(GTK_WINDOW(window),accel_group);
 
-	//gtk_grid_set_column_homogeneous(GTK_GRID(grid),FALSE);
-	gtk_grid_attach (GTK_GRID (grid), menubar, 0, 0,1000, 30);
+	gtk_grid_attach (GTK_GRID (grid), menubar, 0, 0,800, 30);
+
 	gtk_grid_attach (GTK_GRID (grid),  label1, 0, 50, 50, 30);
 	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries.IP), 50, 50, 100, 30);
 	gtk_grid_attach (GTK_GRID (grid),  label2, 150, 50, 50, 40);
 	gtk_grid_attach (GTK_GRID (grid), GTK_WIDGET(entries.Port), 200, 50, 100, 30);
-	gtk_grid_attach (GTK_GRID (grid),  conn_button, 0, 100, 100, 30);
-	gtk_grid_attach (GTK_GRID (grid),  close_button, 100, 100, 100, 30);
-	gtk_grid_attach (GTK_GRID (grid),  drawarea, 0, 150, 700, 600);
-	//gtk_grid_attach (GTK_GRID (grid),  rece_view, 700, 150, 250, 100);
-	gtk_grid_attach (GTK_GRID (grid),  scrolled1, 700, 150, 250, 100);
-	//gtk_grid_attach (GTK_GRID (grid),  send_view, 700, 300, 250, 100);
-	gtk_grid_attach (GTK_GRID (grid),  scrolled2, 700, 300, 250, 100);
-	gtk_grid_attach (GTK_GRID (grid),  send_button, 700, 500, 100, 30);
+
+	gtk_grid_attach (GTK_GRID (grid),  conn_button, 0, 100, 80, 25);
+	gtk_grid_attach (GTK_GRID (grid),  close_button, 100, 100, 80, 25);
+
+	//gtk_grid_attach (GTK_GRID (grid),  daLeft, 5, 150, 50, 550);
+	//gtk_grid_attach (GTK_GRID (grid),  daBottom, 5, 700, 690, 50);
+	gtk_grid_attach (GTK_GRID (grid),  da, 5, 150, 600, 480);
+	gtk_grid_attach (GTK_GRID (grid),  scrolled1, 610, 150, 180, 100);
+	gtk_grid_attach (GTK_GRID (grid),  scrolled2, 610, 255, 180, 100);
+	gtk_grid_attach (GTK_GRID (grid),  send_button, 610, 360, 80, 25);
 
 	gtk_grid_set_row_spacing(GTK_GRID(grid),1);
 	gtk_grid_set_column_spacing (GTK_GRID(grid),1);
