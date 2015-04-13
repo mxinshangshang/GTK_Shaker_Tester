@@ -64,18 +64,70 @@ draw_callback (GtkWidget *widget,
                cairo_t   *cr,
                gpointer   data)
 {
-  	//cairo_set_source_surface (cr, surface, 0, 0);
-  	//cairo_paint (cr);
-	//cairo_t *cr;
+  	gint width, height;
+ 	width = gtk_widget_get_allocated_width (widget);
+  	height = gtk_widget_get_allocated_height (widget);
    	cairo_set_source_surface (cr, surface, 0, 0);
    	cairo_paint (cr);
    	cairo_set_source_rgb(cr,0,0,0); 
 	cairo_set_line_width(cr,2);
-	cairo_move_to(cr, 0, 0);
-	cairo_line_to(cr, 100, 100);
+	//cairo_move_to(cr, 25, height-25);
+	//cairo_line_to(cr, width-25, height-25);
+	//cairo_move_to(cr, 25, 25);
+	//cairo_line_to(cr, 25, height-25);
+
+	gdouble Blank=25;
+	gchar c[1];
+	gdouble i=0,x=0,y=0,x1=Blank,y1=Blank,y0=height-2*Blank,x2=width-2*Blank; 
+	cairo_rectangle (cr,x1, y1, x2, y0);/*axis-y top (x1,y1);axis-zero (x1,y0);axis-x right (x2,y0)*/
+   	//for(i=y1;i<=y0+25;i=i+10)
+  	//{	
+	//	cairo_move_to(cr,x1,i);
+	//	cairo_line_to(cr,x1+3,i);
+ 	//} 
+	//for(i=x1;i<=x2+25;i=i+10)
+	//{
+	//	cairo_move_to(cr,i,y0+25);
+	//	cairo_line_to(cr,i,y0+25-3);
+	//}
+	if((width-2*Blank)/100>5)//Y
+	{
+		for(i=Blank;i<(width-Blank);i=i+50)
+		{
+			cairo_move_to(cr,i,Blank);
+			cairo_line_to(cr,i,height-Blank+6);
+			cairo_move_to(cr,i,height-Blank+16);
+			cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
+			cairo_set_font_size (cr, 15.0);
+			gcvt(x++, 4, c);
+			cairo_show_text(cr,c);
+		}
+		for(i=Blank;i<(width-Blank);i=i+5)
+		{
+			cairo_move_to(cr,i,height-Blank);
+			cairo_line_to(cr,i,height-Blank+3);
+		}
+	}
+	if((height-2*Blank)/100>3)//X
+	{
+		for(i=height-Blank;i>Blank;i=i-50)
+		{
+			cairo_move_to(cr,Blank-6,i);
+			cairo_line_to(cr,width-Blank,i);
+			cairo_move_to(cr,Blank-16,i);
+			cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
+			cairo_set_font_size (cr, 15.0);
+			gcvt(y++, 4, c);
+			cairo_show_text(cr,c);
+		}
+		for(i=height-Blank;i>Blank;i=i-5)
+		{
+			cairo_move_to(cr,Blank-3,i);
+			cairo_line_to(cr,Blank,i);
+		}
+	}
 
         cairo_stroke(cr);
-//        cairo_destroy(cr);
         
   	return FALSE;
 }
@@ -87,7 +139,7 @@ gboolean time_handler (GtkWidget *widget)
  
   if (!timer) return FALSE;
  
-  gtk_widget_queue_draw_area(widget,0,0,600,450);
+  gtk_widget_queue_draw_area(widget,0,0,600,480);
   return TRUE;
 }
 
