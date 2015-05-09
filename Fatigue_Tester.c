@@ -17,9 +17,10 @@ struct EntryStruct
 	GtkEntry * Port;   
 };  
 
-int sockfd;
+//int sockfd;
+GSocket *sock;
 int issucceed=-1;
-struct sockaddr_in saddr;
+//struct sockaddr_in saddr;
 #define MAXSIZE 1024 
 GtkTextBuffer *show_buffer,*input_buffer;  
 gboolean timer = TRUE;
@@ -180,84 +181,145 @@ void on_cls_button_clicked()
 }
 
 /* a new thread,to receive message */
-void *recv_func(void *arg)/*recv_func(void *arg)*/
+gpointer recv_func(gpointer arg)/*recv_func(void *arg)*/
 {     
 
-      char rcvd_mess[MAXSIZE];	
-      while(1)
-	{
-		bzero(rcvd_mess,MAXSIZE);
-		if(recv(sockfd,rcvd_mess,MAXSIZE,0)<0)  /*阻塞直到收到客户端发的消息*/
+//      char rcvd_mess[MAXSIZE];	
+//      while(1)
+//	{
+//		bzero(rcvd_mess,MAXSIZE);
+//		if(recv(sockfd,rcvd_mess,MAXSIZE,0)<0)  /*阻塞直到收到客户端发的消息*/
+//		{
+//			perror("server recv error\n");
+//			exit(1);
+//		}
+//		show_remote_text(rcvd_mess);  
+//		//g_print ("Port: %s\n", rcvd_mess);
+//	}
+
+	 char rcvd_mess[MAXSIZE];
+	 GInputVector vector;
+	 GError *error = NULL;
+	 vector.buffer = rcvd_mess;
+	 vector.size = MAXSIZE;
+	 while(1)
+	 {
+		memset(rcvd_mess,0,MAXSIZE);
+		if(g_socket_receive(sock,vector.buffer, vector.size,NULL, &error)<0)
 		{
 			perror("server recv error\n");
 			exit(1);
 		}
-		show_remote_text(rcvd_mess);  
-		//g_print ("Port: %s\n", rcvd_mess);
-	}
+	    g_print("Messages = %s\n", rcvd_mess);
+	    show_remote_text(rcvd_mess);
+	    g_print("Waiting……");
+	 }
 }
 /* build socket connection */
 int build_socket(const char *serv_ip,const char *serv_port)
 {
-	int res;
-	pthread_t recv_thread;
-	pthread_attr_t thread_attr;
-	/* set status of thread */
-	res=pthread_attr_init(&thread_attr);
-	if(res!=0)
-	{
-		perror("Setting detached attribute failed");
-		exit(EXIT_FAILURE);
-	}
-	sockfd=socket(AF_INET,SOCK_STREAM,0); /* create a socket */
-	if(sockfd==-1)
-	{
-		perror("Socket Error\n");
-		exit(1);
-	}
-	bzero(&saddr,sizeof(saddr));
-	saddr.sin_family=AF_INET;
-	saddr.sin_port=htons(atoi(serv_port));
-	res=inet_pton(AF_INET,serv_ip,&saddr.sin_addr);
-	if(res==0){ /* the serv_ip is invalid */
-		return 1;
-	}
-	else if(res==-1){
-		return -1;
-	}
-	/* set the stats of thread:means do not wait for the return value of subthread */
-	res=pthread_attr_setdetachstate(&thread_attr,PTHREAD_CREATE_DETACHED);
-	if(res!=0)
-	{
-		perror("Setting detached attribute failed");
-		exit(EXIT_FAILURE);
-	}
-        res=connect(sockfd,(struct sockaddr *)&saddr,sizeof(saddr));
-	/* Create a thread,to process the receive function. */
-	if(res==0)
-        {
-       	res=pthread_create(&recv_thread,&thread_attr,&recv_func,NULL);
-	   if(res!=0)
-	     {
-		perror("Thread create error\n");
-		exit(EXIT_FAILURE);
-	     }
-	/* callback the attribute */
-	     (void)pthread_attr_destroy(&thread_attr);
-        }
-        else
-        {
-		perror("Oops:connected failed\n");
-		exit(EXIT_FAILURE);
-        }
-	return 0;
+//	int res;
+//	pthread_t recv_thread;
+//	pthread_attr_t thread_attr;
+//	/* set status of thread */
+//	res=pthread_attr_init(&thread_attr);
+//	if(res!=0)
+//	{
+//		perror("Setting detached attribute failed");
+//		exit(EXIT_FAILURE);
+//	}
+//	sockfd=socket(AF_INET,SOCK_STREAM,0); /* create a socket */
+//	if(sockfd==-1)
+//	{
+//		perror("Socket Error\n");
+//		exit(1);
+//	}
+//	bzero(&saddr,sizeof(saddr));
+//	saddr.sin_family=AF_INET;
+//	saddr.sin_port=htons(atoi(serv_port));
+//	res=inet_pton(AF_INET,serv_ip,&saddr.sin_addr);
+//	if(res==0){ /* the serv_ip is invalid */
+//		return 1;
+//	}
+//	else if(res==-1){
+//		return -1;
+//	}
+//	/* set the stats of thread:means do not wait for the return value of subthread */
+//	res=pthread_attr_setdetachstate(&thread_attr,PTHREAD_CREATE_DETACHED);
+//	if(res!=0)
+//	{
+//		perror("Setting detached attribute failed");
+//		exit(EXIT_FAILURE);
+//	}
+//        res=connect(sockfd,(struct sockaddr *)&saddr,sizeof(saddr));
+//	/* Create a thread,to process the receive function. */
+//	if(res==0)
+//        {
+//       	res=pthread_create(&recv_thread,&thread_attr,&recv_func,NULL);
+//	   if(res!=0)
+//	     {
+//		perror("Thread create error\n");
+//		exit(EXIT_FAILURE);
+//	     }
+//	/* callback the attribute */
+//	     (void)pthread_attr_destroy(&thread_attr);
+//        }
+//        else
+//        {
+//		perror("Oops:connected failed\n");
+//		exit(EXIT_FAILURE);
+//        }
+//	return 0;
+
+
+
+	gboolean res;
+    g_type_init();
+    GInetAddress *iface_address = g_inet_address_new_from_string (serv_ip);
+    GSocketAddress *connect_address = g_inet_socket_address_new (iface_address, atoi(serv_port));
+    GError *err = NULL;
+    sock = g_socket_new(G_SOCKET_FAMILY_IPV4,
+    					G_SOCKET_TYPE_STREAM,
+						G_SOCKET_PROTOCOL_TCP,
+                        &err);
+    g_assert(err == NULL);
+    res=g_socket_connect (sock,
+    				      connect_address,
+                          NULL,
+                          &err);
+    if(res==TRUE)
+    {
+    	g_thread_new(NULL,recv_func, sock);
+//        GSource *source = g_socket_create_source (sock, G_IO_IN,NULL);
+//        g_source_set_callback (source, (GSourceFunc)recv_func, NULL, NULL);
+    	g_print("recv_func start...\n");
+    	return 0;
+    }
+    else
+    {
+    	g_print("g_socket_connect error\n");
+    	return 1;
+    }
 }
 /* send function */
 void send_func(const char *text)
 {
 	int n;
-	//socklen_t len=sizeof(saddr);
-	n=send(sockfd,text,MAXSIZE,0);
+//	//socklen_t len=sizeof(saddr);
+//	n=send(sockfd,text,MAXSIZE,0);
+//	if(n<0)
+//	{
+//		perror("S send error\n");
+//		exit(1);
+//	}
+
+
+	GError *err = NULL;
+	n=g_socket_send(sock,
+	               text,
+			MAXSIZE,
+	               NULL,
+	               &err);
 	if(n<0)
 	{
 		perror("S send error\n");
