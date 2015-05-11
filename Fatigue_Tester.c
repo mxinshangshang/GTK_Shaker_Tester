@@ -2,14 +2,22 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
+
+#define _LINUX_ 1
+
+#ifdef _WIN32_
+#include <windows.h>
+#endif
+
+#ifdef _LINUX_
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <unistd.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <semaphore.h>
+#endif
 
 struct EntryStruct  
 {  
@@ -390,21 +398,24 @@ void on_button1_clicked(GtkButton *button,gpointer user_data)
 	}
 }
 
+char *_(char *c)
+{
+    return(g_locale_to_utf8(c,-1,0,0,0));
+}
+
 
 int main (int argc,char *argv[])
 {
 	GtkWidget *window;
 	GtkWidget *label1;
-	GtkWidget *label2;	
+	GtkWidget *label2;
 	GtkWidget *conn_button;
 	GtkWidget *close_button;
 	GtkWidget *rece_view;
 	GtkWidget *send_view;
 	GtkWidget *send_button;
 	GtkWidget* da;
-	//GtkWidget* daLeft;
-	//GtkWidget* daBottom;
-  	
+
 	GtkWidget* menubar;
   	GtkWidget* menu;
   	GtkWidget* editmenu;
@@ -412,7 +423,7 @@ int main (int argc,char *argv[])
   	GtkWidget* rootmenu;
   	GtkWidget* menuitem;
   	GtkAccelGroup* accel_group;
-	
+
 	GtkWidget* grid;
 	GtkWidget *scrolled1,*scrolled2;
 
@@ -424,7 +435,7 @@ int main (int argc,char *argv[])
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title (GTK_WINDOW (window), "MainWindow");
 	gtk_container_set_border_width (GTK_CONTAINER (window), 0);
-	gtk_widget_set_size_request (window, 800, 600);	
+	gtk_widget_set_size_request (window, 800, 600);
 	g_signal_connect (G_OBJECT (window), "destroy",G_CALLBACK (destroy), NULL);
 
 	grid=gtk_grid_new ();
@@ -437,48 +448,38 @@ int main (int argc,char *argv[])
 	send_view = gtk_text_view_new ();
 	send_button= gtk_button_new_with_label ("Send");
 
-	rece_view=gtk_text_view_new();  
-    	send_view=gtk_text_view_new();  
+	rece_view=gtk_text_view_new();
+    	send_view=gtk_text_view_new();
 
-	//frame = gtk_frame_new (NULL);
-	//gtk_frame_set_shadow_type (GTK_FRAME (frame), GTK_SHADOW_IN);
 	da = gtk_drawing_area_new();
-	//daLeft = gtk_drawing_area_new();
-	//daBottom = gtk_drawing_area_new();
-      	/* set a minimum size */
-      	//gtk_widget_set_size_request (drawarea, 690, 600);
-	//gtk_widget_set_size_request (daLeft, 690, 600);
-	//gtk_widget_set_size_request (daBottom, 690, 600);
-      	//gtk_container_add (GTK_CONTAINER (frame), drawarea);
-  	//gtk_widget_set_size_request (daBottom, 100, 50);
- 	//gtk_widget_set_events (G_OBJECT(daBottom), GDK_EXPOSURE_MASK);
+
 	g_signal_connect (G_OBJECT(da), "draw",G_CALLBACK (draw_callback), NULL);
       	g_signal_connect (G_OBJECT(da),"configure-event",G_CALLBACK (draw_configure_event), NULL);
         g_timeout_add(100, (GSourceFunc) time_handler, (gpointer) da);
 
 
 
- 
-    	/* get the buffer of textbox */  
-    	show_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(rece_view));  
-    	input_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(send_view));  
-    	/* set textbox to diseditable */  
-    	gtk_text_view_set_editable(GTK_TEXT_VIEW(rece_view),FALSE);  
-    	/* scroll window */  
-    	scrolled1=gtk_scrolled_window_new(NULL,NULL);  
-    	scrolled2=gtk_scrolled_window_new(NULL,NULL);  
-    	/* create a textbox */  
-    	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled1),rece_view);  
-    	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled2),send_view);  
-    	/* setting of window */  
-    	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled1),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);  
-    	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled2),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC); 
+
+    	/* get the buffer of textbox */
+    	show_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(rece_view));
+    	input_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(send_view));
+    	/* set textbox to diseditable */
+    	gtk_text_view_set_editable(GTK_TEXT_VIEW(rece_view),FALSE);
+    	/* scroll window */
+    	scrolled1=gtk_scrolled_window_new(NULL,NULL);
+    	scrolled2=gtk_scrolled_window_new(NULL,NULL);
+    	/* create a textbox */
+    	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled1),rece_view);
+    	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled2),send_view);
+    	/* setting of window */
+    	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled1),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);
+    	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled2),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);
 	g_signal_connect(G_OBJECT(send_button), "clicked", G_CALLBACK(on_send_button_clicked),NULL);
 
-	
+
 	conn_button = gtk_button_new_with_label ("Connect");
 	gtk_button_set_relief (GTK_BUTTON (conn_button), GTK_RELIEF_NONE);
-        g_signal_connect(G_OBJECT(conn_button), "clicked", G_CALLBACK(on_button1_clicked),(gpointer) &entries); 
+        g_signal_connect(G_OBJECT(conn_button), "clicked", G_CALLBACK(on_button1_clicked),(gpointer) &entries);
 	/* Create a new button that has a mnemonic key of Alt+C. */
 	close_button = gtk_button_new_with_mnemonic ("Close");
 	gtk_button_set_relief (GTK_BUTTON (close_button), GTK_RELIEF_NONE);
@@ -489,49 +490,49 @@ int main (int argc,char *argv[])
     	menu=gtk_menu_new();
     	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_NEW,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 新建")); 
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 新建")));
     	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_OPEN,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 打开"));
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 打开")));
     	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_SAVE,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 保存"));
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 保存")));
     	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_SAVE_AS,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 另存为"));
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 另存为")));
     	menuitem=gtk_separator_menu_item_new();
   	gtk_menu_shell_append(GTK_MENU_SHELL(menu),menuitem);
     	menuitem=gtk_image_menu_item_new_from_stock( GTK_STOCK_QUIT,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)("exit"));
-  	rootmenu=gtk_menu_item_new_with_label(" 文件 ");
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 退出")));
+  	rootmenu=gtk_menu_item_new_with_label(_(" 文件 "));
     	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu),menu);
     	menubar=gtk_menu_bar_new();
-  	gtk_menu_shell_append(GTK_MENU_SHELL(menubar),rootmenu); 
-     	rootmenu=gtk_menu_item_new_with_label(" 编辑 ");
+  	gtk_menu_shell_append(GTK_MENU_SHELL(menubar),rootmenu);
+     	rootmenu=gtk_menu_item_new_with_label(_(" 编辑 "));
      	editmenu=gtk_menu_new();
   	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_CUT,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 剪切 "));
-     	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_COPY,accel_group); 
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 剪切 ")));
+     	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_COPY,accel_group);
    	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu),menuitem);
-   	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)("复制 "));
+   	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_("复制 ")));
    	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_PASTE,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 粘贴 ")); 
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 粘贴 ")));
     	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_FIND,accel_group);
-  	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu),menuitem); 
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 查找 "));
+  	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu),menuitem);
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 查找 ")));
   	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu),editmenu);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menubar),rootmenu);
-    	rootmenu=gtk_menu_item_new_with_label(" 帮助 ");
+    	rootmenu=gtk_menu_item_new_with_label(_(" 帮助 "));
  	helpmenu=gtk_menu_new();
  	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_HELP,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(helpmenu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)( " 帮助 "));
-    	menuitem=gtk_menu_item_new_with_label(" 关于...");
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_( " 帮助 ")));
+    	menuitem=gtk_menu_item_new_with_label(_(" 关于..."));
  	gtk_menu_shell_append(GTK_MENU_SHELL(helpmenu),menuitem);
-  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(" 关于 "));
+  	g_signal_connect(G_OBJECT(menuitem),"activate",G_CALLBACK(on_menu_activate),(gpointer)(_(" 关于 ")));
   	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu),helpmenu);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menubar),rootmenu);
 
@@ -548,8 +549,6 @@ int main (int argc,char *argv[])
 	gtk_grid_attach (GTK_GRID (grid),  conn_button, 0, 100, 80, 25);
 	gtk_grid_attach (GTK_GRID (grid),  close_button, 100, 100, 80, 25);
 
-	//gtk_grid_attach (GTK_GRID (grid),  daLeft, 5, 150, 50, 550);
-	//gtk_grid_attach (GTK_GRID (grid),  daBottom, 5, 700, 690, 50);
 	gtk_grid_attach (GTK_GRID (grid),  da, 5, 150, 600, 480);
 	gtk_grid_attach (GTK_GRID (grid),  scrolled1, 610, 150, 180, 100);
 	gtk_grid_attach (GTK_GRID (grid),  scrolled2, 610, 255, 180, 100);
