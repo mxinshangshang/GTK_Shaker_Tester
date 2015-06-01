@@ -7,6 +7,8 @@
 
 #ifdef _WIN32_
 #include <windows.h>
+#include <winsock2.h>
+#include <mysql.h>
 #endif
 
 #ifdef _LINUX_
@@ -17,13 +19,143 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <semaphore.h>
+#include <mysql/mysql.h>
 #endif
+
+#define SERVER_HOST "localhost"  //mysql的远程地址  
+#define SERVER_USER "root"       //数据库登录名  
+#define SERVER_PWD  "12345"     //数据库登录密码  
+  
+#define DB_NAME     "pulse_db"   //新建数据库的名字  
+#define TABLE_NAME  "mytables"   //库中的表  
+
+int check_tbl(MYSQL* mysql,char *name);  
+int check_db(MYSQL *mysql,char *db_name); 
 
 struct EntryStruct  
 {  
     	GtkEntry * IP;  
 	GtkEntry * Port;   
 };  
+
+int init_db()  
+{  
+  
+    int err=0;  
+    MYSQL mysql;  
+  
+    if(!mysql_init(&mysql))
+    {  
+        g_print("mysql_init:");  
+        exit(1);  
+    }     
+  
+    if(!mysql_real_connect(&mysql,SERVER_HOST,SERVER_USER,SERVER_PWD,NULL,0,NULL,0))  
+    {     
+        g_print("mysql_real_connect");  
+        exit(1);  
+    }     
+    g_print("connected.....\n");  
+  
+    err = check_db(&mysql,DB_NAME);  
+    if(err != 0)  
+    {     
+        g_print("create db is err!\n");  
+        mysql_close(&mysql);  
+        exit(1);  
+    }     
+    //select which db  
+    if(mysql_select_db(&mysql,DB_NAME)) //return 0 is success ,!0 is err  
+    {  
+        g_print("mysql_select_db:");  
+        mysql_close(&mysql);  
+        exit(1);  
+    }  
+    //chuangjianbiao  
+    if((err=check_tbl(&mysql,TABLE_NAME))!=0)  
+    {  
+        g_print("check_tbl is err!\n");  
+        mysql_close(&mysql);  
+        exit(1);  
+    }  
+    mysql_close(&mysql);  
+    return 0;  
+}  
+  
+int check_db(MYSQL *mysql,char *db_name)  
+{  
+    MYSQL_ROW row = NULL;  
+    MYSQL_RES *res = NULL;  
+  
+    res = mysql_list_dbs(mysql,NULL);  
+    if(res)  
+    {  
+        while((row = mysql_fetch_row(res))!=NULL)  
+        {  
+            g_print("db is %s\n",row[0]);  
+            if(strcmp(row[0],db_name)==0)  
+            {  
+                g_print("find db %s\n",db_name);  
+                break;  
+            }  
+        }  
+        //mysql_list_dbs会分配内存，需要使用mysql_free_result释放  
+        mysql_free_result(res);  
+    }  
+    if(!row)  //没有这个数据库，则建立  
+    {  
+        char buf[128]={0};  
+        strcpy(buf,"CREATE DATABASE ");  
+        strcat(buf,db_name);  
+        #ifdef DEBUG  
+        g_print("%s\n",buf);  
+        #endif  
+        if(mysql_query(mysql,buf)){  
+            fprintf(stderr,"Query failed (%s)\n",mysql_error(mysql));  
+            exit(1);  
+        }  
+    }  
+    return 0;  
+}  
+  
+int check_tbl(MYSQL* mysql,char *name)  
+{  
+    if(name == NULL)  
+        return 0;  
+    MYSQL_ROW row=NULL;  
+    MYSQL_RES *res = NULL;  
+    res = mysql_list_tables(mysql,NULL);  
+    if(res)  
+    {  
+        while((row = mysql_fetch_row(res))!=NULL)  
+        {  
+            g_print("tables is %s\n",row[0]);  
+            if(strcmp(row[0],name) == 0)  
+            {  
+                g_print("find the table !\n");  
+                break;  
+            }  
+        }  
+        mysql_free_result(res);  
+    }  
+    if(!row) //create table  
+    {  
+        char buf[128]={0};  
+        char qbuf[128]={0};  
+        snprintf(buf,sizeof(buf),"%s (name VARCHAR(20),sex char(1),score int(3));",TABLE_NAME);  
+        strcpy(qbuf,"CREATE TABLE ");  
+        strcat(qbuf,buf);  
+        //#ifdef DEBUG  
+        g_print("%s\n",qbuf);  
+        //#endif  
+        if(mysql_query(mysql,qbuf)){  
+            fprintf(stderr,"Query failed (%s)\n",mysql_error(mysql));  
+            exit(1);  
+        }  
+    }  
+    return 0;  
+} 
+
 
 //int sockfd;
 GSocket *sock;
@@ -226,62 +358,7 @@ gpointer recv_func(gpointer arg)/*recv_func(void *arg)*/
 /* build socket connection */
 int build_socket(const char *serv_ip,const char *serv_port)
 {
-//	int res;
-//	pthread_t recv_thread;
-//	pthread_attr_t thread_attr;
-//	/* set status of thread */
-//	res=pthread_attr_init(&thread_attr);
-//	if(res!=0)
-//	{
-//		perror("Setting detached attribute failed");
-//		exit(EXIT_FAILURE);
-//	}
-//	sockfd=socket(AF_INET,SOCK_STREAM,0); /* create a socket */
-//	if(sockfd==-1)
-//	{
-//		perror("Socket Error\n");
-//		exit(1);
-//	}
-//	bzero(&saddr,sizeof(saddr));
-//	saddr.sin_family=AF_INET;
-//	saddr.sin_port=htons(atoi(serv_port));
-//	res=inet_pton(AF_INET,serv_ip,&saddr.sin_addr);
-//	if(res==0){ /* the serv_ip is invalid */
-//		return 1;
-//	}
-//	else if(res==-1){
-//		return -1;
-//	}
-//	/* set the stats of thread:means do not wait for the return value of subthread */
-//	res=pthread_attr_setdetachstate(&thread_attr,PTHREAD_CREATE_DETACHED);
-//	if(res!=0)
-//	{
-//		perror("Setting detached attribute failed");
-//		exit(EXIT_FAILURE);
-//	}
-//        res=connect(sockfd,(struct sockaddr *)&saddr,sizeof(saddr));
-//	/* Create a thread,to process the receive function. */
-//	if(res==0)
-//        {
-//       	res=pthread_create(&recv_thread,&thread_attr,&recv_func,NULL);
-//	   if(res!=0)
-//	     {
-//		perror("Thread create error\n");
-//		exit(EXIT_FAILURE);
-//	     }
-//	/* callback the attribute */
-//	     (void)pthread_attr_destroy(&thread_attr);
-//        }
-//        else
-//        {
-//		perror("Oops:connected failed\n");
-//		exit(EXIT_FAILURE);
-//        }
-//	return 0;
-
-
-
-	gboolean res;
+    gboolean res;
     g_type_init();
     GInetAddress *iface_address = g_inet_address_new_from_string (serv_ip);
     GSocketAddress *connect_address = g_inet_socket_address_new (iface_address, atoi(serv_port));
@@ -313,15 +390,6 @@ int build_socket(const char *serv_ip,const char *serv_port)
 void send_func(const char *text)
 {
 	int n;
-//	//socklen_t len=sizeof(saddr);
-//	n=send(sockfd,text,MAXSIZE,0);
-//	if(n<0)
-//	{
-//		perror("S send error\n");
-//		exit(1);
-//	}
-
-
 	GError *err = NULL;
 	n=g_socket_send(sock,
 	               text,
@@ -457,9 +525,6 @@ int main (int argc,char *argv[])
       	g_signal_connect (G_OBJECT(da),"configure-event",G_CALLBACK (draw_configure_event), NULL);
         g_timeout_add(100, (GSourceFunc) time_handler, (gpointer) da);
 
-
-
-
     	/* get the buffer of textbox */
     	show_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(rece_view));
     	input_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(send_view));
@@ -561,5 +626,8 @@ int main (int argc,char *argv[])
 
 	gtk_widget_show_all (window);
 	gtk_main ();
+
+        init_db();  
+
 	return 0;
 }
