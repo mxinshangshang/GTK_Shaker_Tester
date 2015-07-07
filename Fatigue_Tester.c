@@ -1,9 +1,24 @@
+/**************************************************************************************
+*  File name:      Fatigue_Tester.c
+*  Author:         Mxin Chiang
+*  Version:        1.0
+*  Date:           07.05.2015
+*  Description:    Design a software accepts data sent from fatigue testing machine,
+*                  waveform presentation, recording in MySQL database,
+*                  data processing and generate pdf reports.
+*  Others:
+*  Function List:
+***************************************************************************************/
+
 #include <gtk/gtk.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <cairo-pdf.h>
 
-#define _LINUX_ 1
+//#define _WIN32_ 1    /* Compile for WIN32 */
+#define _LINUX_ 1    /* Compile for Linux */
 
 #ifdef _WIN32_
 #include <windows.h>
@@ -28,11 +43,15 @@
 #define DB_NAME     "fatigue_test_db"
 #define TABLE_NAME  "mytables"
 
-int check_tbl(MYSQL* mysql,char *name);
-int check_db(MYSQL *mysql,char *db_name);
+//#define CAIRO_HAS_PDF_SURFACE 1
+
+int check_tbl(MYSQL* mysql,gchar *name);
+int check_db(MYSQL *mysql,gchar *db_name);
 
 gint **datas;
 gint num=0;
+time_t now;
+struct tm *curTime;
 
 GSocket *sock;
 gint issucceed=-1;
@@ -40,14 +59,11 @@ gint issucceed=-1;
 GtkTextBuffer *show_buffer,*input_buffer;
 gboolean timer = TRUE;
 static cairo_surface_t *surface = NULL;
+GtkWidget *report_window=NULL;
 
-gdouble width, height;
-gint top_y=50,top_x=50;
-gdouble big_sp,small_sp;
-gint biggest=0;
-gdouble Blank=25;
 gint last_point[8];
-gint next=25;
+gint biggest=0;
+gint top_y=50;
 
 struct EntryStruct
 {
@@ -61,44 +77,54 @@ struct EntryStruct1
 	GtkEntry *DA2;
 	GtkEntry *D0;
 	GtkEntry *PWM;
-	GtkEntry *PMW_Duty;
+	GtkEntry *PWM_Duty;
 	GtkEntry *PWM_DIR;
 };
 
+gchar *_(gchar *c)
+{
+    return(g_locale_to_utf8(c,-1,0,0,0));
+}
+
+/***************************************************************************************
+*    Function:
+*    Description:  Database Operations
+***************************************************************************************/
+
 int init_db()
 {
-    int err=0;
+    gint err=0;
     MYSQL mysql;
 
     if(!mysql_init(&mysql))
     {
-        g_print("mysql_init:");
+    	g_print("mysql_init:");
         exit(1);
     }
 
     if(!mysql_real_connect(&mysql,SERVER_HOST,SERVER_USER,SERVER_PWD,NULL,0,NULL,0))
     {
-        g_print("mysql_real_connect");
+    	g_print("mysql_real_connect");
         exit(1);
     }
 
-    err = check_db(&mysql,DB_NAME);//use check_db()
+    err = check_db(&mysql,DB_NAME);/* Check database */
     if(err != 0)
     {
-        g_print("create db is err!\n");
+    	g_print("create db is err!\n");
         mysql_close(&mysql);
         exit(1);
     }
-    //select which db
-    if(mysql_select_db(&mysql,DB_NAME)) //return 0 is success ,!0 is err
+
+    if(mysql_select_db(&mysql,DB_NAME)) /* Select which db */
     {
-        g_print("mysql_select_db:");
+    	g_print("mysql_select_db:");
         mysql_close(&mysql);
         exit(1);
     }
-    if((err=check_tbl(&mysql,TABLE_NAME))!=0)//use check_tbl()
+    if((err=check_tbl(&mysql,TABLE_NAME))!=0)/* Check table */
     {
-        g_print("check_tbl is err!\n");
+    	g_print("check_tbl is err!\n");
         mysql_close(&mysql);
         exit(1);
     }
@@ -106,7 +132,7 @@ int init_db()
     return 0;
 }
 
-int check_db(MYSQL *mysql,char *db_name)
+int check_db(MYSQL *mysql,gchar *db_name)
 {
     MYSQL_ROW row = NULL;
     MYSQL_RES *res = NULL;
@@ -116,22 +142,22 @@ int check_db(MYSQL *mysql,char *db_name)
     {
         while((row = mysql_fetch_row(res))!=NULL)
         {
-            g_print("db is %s\n",row[0]);
+        	g_print("db is %s\n",row[0]);
             if(strcmp(row[0],db_name)==0)
             {
-                g_print("find db %s\n",db_name);
+            	g_print("find db %s\n",db_name);
                 break;
             }
         }
-        //mysql_list_dbs会分配内存，需要使用mysql_free_result释放
         mysql_free_result(res);
     }
-    if(!row)  //没有这个数据库，则建立
+    if(!row) /* Build database if no this database */
     {
         char buf[128]={0};
         strcpy(buf,"CREATE DATABASE ");
         strcat(buf,db_name);
-        if(mysql_query(mysql,buf)){
+        if(mysql_query(mysql,buf))
+        {
         	g_print("Query failed (%s)\n",mysql_error(mysql));
             exit(1);
         }
@@ -139,7 +165,7 @@ int check_db(MYSQL *mysql,char *db_name)
     return 0;
 }
 
-int check_tbl(MYSQL* mysql,char *name)
+int check_tbl(MYSQL* mysql,gchar *name)
 {
     if(name == NULL)
         return 0;
@@ -150,23 +176,24 @@ int check_tbl(MYSQL* mysql,char *name)
     {
         while((row = mysql_fetch_row(res))!=NULL)
         {
-            g_print("tables is %s\n",row[0]);
+        	g_print("tables is %s\n",row[0]);
             if(strcmp(row[0],name) == 0)
             {
-                g_print("find the table !\n");
+            	g_print("find the table !\n");
                 break;
             }
         }
         mysql_free_result(res);
     }
-    if(!row) //create table
+    if(!row) /* Create table if no this table */
     {
         char buf[1024]={0};
         char qbuf[1024]={0};
         snprintf(buf,sizeof(buf),"%s (SN INT(10) AUTO_INCREMENT NOT NULL,pulse1 INT(10),pulse2 INT(10),pulse3 INT(10),AD1 INT(10),AD2 INT(10),AD3 INT(10),AD4 INT(10),DI INT(10),PRIMARY KEY (SN));",TABLE_NAME);
         strcpy(qbuf,"CREATE TABLE ");
         strcat(qbuf,buf);
-        if(mysql_query(mysql,qbuf)){
+        if(mysql_query(mysql,qbuf))
+        {
         	g_print("Query failed (%s)\n",mysql_error(mysql));
             exit(1);
         }
@@ -195,7 +222,6 @@ void send_to_mysql(gint rcvd_mess[])
             fprintf(stderr, "Insert error %d: %s\n", mysql_errno(&my_connection),
             mysql_error(&my_connection));
         }
-
         mysql_close(&my_connection);
     }
     else
@@ -207,6 +233,11 @@ void send_to_mysql(gint rcvd_mess[])
         }
     }
 }
+
+/***************************************************************************************
+*    Function:
+*    Description:  waveform presentation
+***************************************************************************************/
 
 /* Create a new surface of the appropriate size to store our scribbles */
 static gboolean
@@ -225,7 +256,6 @@ draw_configure_event (GtkWidget         *widget,
                                                CAIRO_CONTENT_COLOR,
                                                allocation.width,
                                                allocation.height);
-
   /* Initialize the surface to white */
   cr = cairo_create (surface);
   cairo_set_source_rgb (cr, 1, 1, 1);
@@ -246,6 +276,10 @@ draw_callback (GtkWidget *widget,
 	gint j=0,x_o;
 	gchar c[1];
 	gint recv[8];
+	gdouble big_sp,small_sp;
+	gdouble width, height;
+	gdouble Blank=25;
+	gint next=25;
 	for(j=0;j<8;j++)
 	{
 		recv[j]=0;
@@ -260,7 +294,7 @@ draw_callback (GtkWidget *widget,
 	big_sp=(height-2*Blank)/10;
 	small_sp=(height-2*Blank)/top_y;
 
-	if(num>=1)
+	if(num>=1) /* Calculate the maximum of current data */
 	{
 		recv[0]=datas[num-1][0];
 		recv[1]=datas[num-1][1];
@@ -277,7 +311,7 @@ draw_callback (GtkWidget *widget,
 		}
 	}
 	else biggest=50;
-    if(biggest>=top_y)
+    if(biggest>=top_y) /*Adjust the space of axis */
 	{
 		top_y=biggest/50*50+50;
 		big_sp=(height-2*Blank)/10;
@@ -286,20 +320,21 @@ draw_callback (GtkWidget *widget,
 
    	cairo_set_source_rgb(cr,0,0,0);
 	cairo_set_line_width(cr,0.5);
-	cairo_rectangle (cr,Blank, Blank, width-2*Blank, height-2*Blank);
+	cairo_rectangle (cr,Blank, Blank, width-2*Blank, height-2*Blank);/* Draw outer border */
 
-	for(i=height-Blank;i>=Blank;i=i-big_sp)//Y
+	for(i=height-Blank;i>Blank-1;i=i-big_sp)/* Draw Y-axis */
 	{
 		cairo_move_to(cr,Blank-6,i);
 		cairo_line_to(cr,width-Blank,i);
 		cairo_move_to(cr,Blank-16,i);
 		cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
 		cairo_set_font_size (cr, 12.0);
-		gcvt(y, 4, c);
+		//gcvt(y, 4, c);
+		sprintf(c, "%.0lf", y);
 		y=y+top_y/10;
 		cairo_show_text(cr,c);
 	}
-	for(i=height-Blank;i>=Blank;i=i-small_sp)
+	for(i=height-Blank;i>Blank;i=i-small_sp)
 	{
 		cairo_move_to(cr,Blank-3,i);
 		cairo_line_to(cr,Blank,i);
@@ -308,14 +343,15 @@ draw_callback (GtkWidget *widget,
 	{
 		x=((num-700)/100+1)*100;
 	}
-	for(i=Blank;i<(width-Blank);i=i+100)//X
+	for(i=Blank;i<=(width-Blank);i=i+100)/* Draw X-axis */
 	{
 		cairo_move_to(cr,i,Blank);
 		cairo_line_to(cr,i,height-Blank+6);
-		cairo_move_to(cr,i,height-Blank+16);
+		cairo_move_to(cr,i-10,height-Blank+16);
 		cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
 		cairo_set_font_size (cr, 12.0);
-		gcvt(x, 4, c);
+		//gcvt(x, 4, c);
+		sprintf(c, "%.0lf", x);
 		x=x+100;
 		cairo_show_text(cr,c);
 	}
@@ -333,7 +369,7 @@ draw_callback (GtkWidget *widget,
     		last_point[j]=0;
     	}
 
-		if(num>700)
+		if(num>700)/* X-axis starting value adjustment */
 		{
 			x_o=((num-700)/100+1)*100;
 		}
@@ -342,7 +378,7 @@ draw_callback (GtkWidget *widget,
 		next=24;
 		for(j=x_o;j<num;j++)
 		{
-	       	cairo_set_source_rgb(cr,0,1,0);
+	       	cairo_set_source_rgb(cr,0,1,0);/* Draw green line pulse1 */
 	    	cairo_set_line_width(cr,1.5);
 			recv[0]=datas[j][0];
 			cairo_move_to(cr,next,height-Blank-last_point[0]*small_sp);
@@ -352,7 +388,7 @@ draw_callback (GtkWidget *widget,
 		    cairo_stroke(cr);
 
 		    next--;
-	       	cairo_set_source_rgb(cr,1,0,0);
+	       	cairo_set_source_rgb(cr,1,0,0);/* Draw red line pulse2 */
 	    	cairo_set_line_width(cr,1.5);
 			recv[1]=datas[j][1];
 			cairo_move_to(cr,next,height-Blank-last_point[1]*small_sp);
@@ -362,7 +398,7 @@ draw_callback (GtkWidget *widget,
 		    cairo_stroke(cr);
 
 		    next--;
-	       	cairo_set_source_rgb(cr,0,0,1);
+	       	cairo_set_source_rgb(cr,0,0,1);/* Draw blue line pulse3 */
 	    	cairo_set_line_width(cr,1.5);
 			recv[2]=datas[j][2];
 			cairo_move_to(cr,next,height-Blank-last_point[2]*small_sp);
@@ -382,12 +418,16 @@ gboolean time_handler (GtkWidget *widget)
 
   if (!timer) return FALSE;
 
-  gtk_widget_queue_draw_area(widget,0,0,800,500);
+  gtk_widget_queue_draw_area(widget,0,0,850,550);
   return TRUE;
 }
 
+/***************************************************************************************
+*    Function:
+*    Description:  textview presentation
+***************************************************************************************/
 
-void show_err(char *err)
+void show_err(gchar *err)
 {
 	GtkTextIter start,end;
 	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(show_buffer),&start,&end);
@@ -395,14 +435,14 @@ void show_err(char *err)
 }
 
 /* show the received message */
-void show_remote_text(char rcvd_mess[])
+void show_remote_text(gchar rcvd_mess[])
 {
     GtkTextIter start,end;
     gchar * escape, * text;
     escape = g_strescape (rcvd_mess, NULL);
     text = g_strconcat (escape, "\n", NULL);
-    gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(show_buffer),&start,&end);/*获得缓冲区开始和结束位置的Iter*/
-    gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,text,strlen(text));/*插入文本到缓冲区*/
+    gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(show_buffer),&start,&end);/* Retrieves the first and last iterators in the buffer */
+    gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,text,strlen(text));
     g_free (escape);
     g_free (text);
 }
@@ -414,21 +454,18 @@ void show_local_text(const gchar* text)
     gchar * escape, *text1;
     escape = g_strescape (text, NULL);
     text1 = g_strconcat (escape, "\n", NULL);
-	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(show_buffer),&start,&end);/*获得缓冲区开始和结束位置的Iter*/
-	gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,text1,strlen(text1));/*插入文本到缓冲区*/
+	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(show_buffer),&start,&end);/* Retrieves the first and last iterators in the buffer */
+	gtk_text_buffer_insert(GTK_TEXT_BUFFER(show_buffer),&end,text1,strlen(text1));
 	g_free (escape);
 	g_free (text1);
 }
 
-/* clean the input text */
-void on_cls_button_clicked()
-{
-	GtkTextIter start,end;
-	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(input_buffer),&start,&end);/*获得缓冲区开始和结束位置的Iter*/
-	gtk_text_buffer_delete(GTK_TEXT_BUFFER(input_buffer),&start,&end);/*插入到缓冲区*/
-}
+/***************************************************************************************
+*    Function:
+*    Description:  socket function
+***************************************************************************************/
 
-/* a new thread,to receive message */
+/* A new thread,to receive message */
 gpointer recv_func(gpointer arg)
 {
 	 gchar rcvd_mess[MAXSIZE];
@@ -446,8 +483,8 @@ gpointer recv_func(gpointer arg)
 			perror("server recv error\n");
 			exit(1);
 		}
-	    send_to_mysql(bufferIn);              //记录到mysql
-	    g_print("header is  %d %d %d %d %d %d %d %d:\n",bufferIn[0],bufferIn[1],bufferIn[2],bufferIn[3],bufferIn[4],bufferIn[5],bufferIn[6],bufferIn[7]);
+	    send_to_mysql(bufferIn); /* Record in the database */
+	    g_print("Messages:  %d %d %d %d %d %d %d %d\n",bufferIn[0],bufferIn[1],bufferIn[2],bufferIn[3],bufferIn[4],bufferIn[5],bufferIn[6],bufferIn[7]);
 	    for(i=0;i<8;i++)
 	    {
 	    	datas[num][i]=bufferIn[i];
@@ -456,8 +493,25 @@ gpointer recv_func(gpointer arg)
 	 }
 }
 
-/* build socket connection */
-int build_socket(const char *serv_ip,const char *serv_port)
+/* Send function */
+void send_func(const gchar *text)
+{
+	gint n;
+	GError *err = NULL;
+	n=g_socket_send(sock,
+	               text,
+			MAXSIZE,
+	               NULL,
+	               &err);
+	if(n<0)
+	{
+		perror("S send error\n");
+		exit(1);
+	}
+}
+
+/* Build socket connection */
+int build_socket(const gchar *serv_ip,const gchar *serv_port)
 {
 	gboolean res;
     g_type_init();
@@ -475,7 +529,7 @@ int build_socket(const char *serv_ip,const char *serv_port)
                           &err);
     if(res==TRUE)
     {
-    	g_thread_new(NULL,recv_func, sock);
+    	g_thread_new(NULL,recv_func, sock); /* A new thread,to receive message */
     	g_print("recv_func start...\n");
     	return 0;
     }
@@ -485,33 +539,23 @@ int build_socket(const char *serv_ip,const char *serv_port)
     	return 1;
     }
 }
-/* send function */
-void send_func(const char *text)
-{
-	int n;
-	GError *err = NULL;
-	n=g_socket_send(sock,
-	               text,
-			MAXSIZE,
-	               NULL,
-	               &err);
-	if(n<0)
-	{
-		perror("S send error\n");
-		exit(1);
-	}
-}
 
-/* get the input text,and send it */
-void on_send_button_clicked()
+/* Get the input text,and send it */
+void on_send_button_clicked(GtkButton *button,gpointer user_data)
 {
-	GtkTextIter start,end;
 	gchar *text;
+	struct EntryStruct1 *entry1 = (struct EntryStruct1 *)user_data;
+	const gchar *DA1 = gtk_entry_get_text(GTK_ENTRY(entry1->DA1));
+	const gchar *DA2 = gtk_entry_get_text(GTK_ENTRY(entry1->DA2));
+	const gchar *D0 = gtk_entry_get_text(GTK_ENTRY(entry1->D0));
+	const gchar *PWM = gtk_entry_get_text(GTK_ENTRY(entry1->PWM));
+	const gchar *PWM_Duty = gtk_entry_get_text(GTK_ENTRY(entry1->PWM_Duty));
+	const gchar *PWM_DIR = gtk_entry_get_text(GTK_ENTRY(entry1->PWM_DIR));
  	if(issucceed==-1){ /* Haven't create a socket */
  		show_err("Not connected...\n");
 	}
 	else
-	{ /* Socket creating has succeed ,so send message */
+	{ /* Socket creating has sucMceed ,so send message */
 		text=(gchar *)malloc(MAXSIZE);
 		if(text==NULL)
 		{
@@ -519,13 +563,12 @@ void on_send_button_clicked()
 			exit(1);
 		}
 		/* get text */
-		gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(input_buffer),&start,&end);
-		text=gtk_text_buffer_get_text(GTK_TEXT_BUFFER(input_buffer),&start,&end,FALSE);
+		text=g_strjoin(DA1, DA2, D0, PWM, PWM_Duty, PWM_DIR, NULL);
 		/* If there is no input,do nothing but return */
 		if(strcmp(text,"")!=0)
 		{
 			send_func(text);
-			on_cls_button_clicked();
+			//on_cls_button_clicked();
 			show_local_text(text);
 		}
 		else
@@ -534,28 +577,10 @@ void on_send_button_clicked()
 	}
 }
 
-/* Stop the GTK+ main loop function. */
-static void destroy (GtkWidget *window,gpointer data)
-{
-	int i;
-	for(i=0;i<360000;i++)
-	{
-		g_free(datas[i]);
-	}
-	g_free(datas);
-
-	gtk_main_quit ();
-}
-
-/* Menu key test */
-void on_menu_activate(GtkMenuItem* item,gpointer data)
-{
-   	g_print("menuitem %s is pressed.\n",(gchar*)data);
-}
-
+/* Connect button function */
 void on_button1_clicked(GtkButton *button,gpointer user_data)
 {
-	int res;
+	gint res;
 	struct EntryStruct *entry = (struct EntryStruct *)user_data;
 	const gchar *serv_ip = gtk_entry_get_text(GTK_ENTRY(entry->IP));
 	const gchar *serv_port= gtk_entry_get_text(GTK_ENTRY(entry->Port));
@@ -574,32 +599,264 @@ void on_button1_clicked(GtkButton *button,gpointer user_data)
 	}
 }
 
-char *_(char *c)
+/***************************************************************************************
+*    Function:
+*    Description:  create report
+***************************************************************************************/
+
+static void
+check_toggled (GtkToggleButton *check1, gpointer user_data)
 {
-    return(g_locale_to_utf8(c,-1,0,0,0));
+	g_print("checkbox %s is pressed.\n",(gchar *)user_data);
 }
 
+/* Report button function */
+void on_report_button_clicked(GtkButton *button,gpointer user_data)
+{
+	cairo_surface_t *report_surface;
+	cairo_t *cr;
+	gdouble i=0,x=0,y=0,Blank=25,next=25;
+	gdouble big_sp,small_sp,width, height;
+	gint j=0,x_o;
+	gchar c[4];
+	gint recv[8];
+
+	report_surface = cairo_pdf_surface_create("HelloWorld.pdf", 595.28, 765.35);
+	cr = cairo_create(report_surface);
+  	cairo_set_source_surface (cr, surface, 0, 0);
+   	cairo_paint (cr);
+
+ 	width = 400;
+  	height = 400;
+
+	for(j=0;j<8;j++)
+	{
+		recv[j]=0;
+	}
+
+	big_sp=(height-2*Blank)/10;
+	small_sp=(height-2*Blank)/top_y;
+
+	if(num>=1) /* Calculate the maximum of current data */
+	{
+		recv[0]=datas[num-1][0];
+		recv[1]=datas[num-1][1];
+		recv[2]=datas[num-1][2];
+		if(recv[0]>recv[1])
+		{
+			if(recv[2]>recv[0]) biggest=recv[2];
+			else biggest=recv[0];
+		}
+		else
+		{
+			if(recv[2]>recv[1]) biggest=recv[2];
+			else biggest=recv[1];
+		}
+	}
+	else biggest=50;
+    if(biggest>=top_y) /*Adjust the space of axis */
+	{
+		top_y=biggest/50*50+50;
+		big_sp=(height-2*Blank)/10;
+		small_sp=(height-2*Blank)/top_y;
+	}
+
+   	cairo_set_source_rgb(cr,0,0,0);
+	cairo_set_line_width(cr,0.5);
+	cairo_rectangle (cr,Blank, Blank, width-2*Blank, height-2*Blank);/* Draw outer border */
+
+	for(i=height-Blank;i>Blank-1;i=i-big_sp)/* Draw Y-axis */
+	{
+		cairo_move_to(cr,Blank-6,i);
+		cairo_line_to(cr,width-Blank,i);
+		cairo_move_to(cr,Blank-16,i);
+		cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
+		cairo_set_font_size (cr, 12.0);
+		sprintf(c, "%.0lf", y);
+		y=y+top_y/10;
+		cairo_show_text(cr,c);
+	}
+	for(i=height-Blank;i>Blank;i=i-small_sp)
+	{
+		cairo_move_to(cr,Blank-3,i);
+		cairo_line_to(cr,Blank,i);
+	}
+	if(num>700)
+	{
+		x=((num-700)/100+1)*100;
+	}
+	for(i=Blank;i<=(width-Blank);i=i+50)/* Draw X-axis */
+	{
+		cairo_move_to(cr,i,Blank);
+		cairo_line_to(cr,i,height-Blank+6);
+		cairo_move_to(cr,i,height-Blank+16);
+		cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
+		cairo_set_font_size (cr, 12.0);
+		sprintf(c, "%.0lf", x);
+		x=x+100;
+		cairo_show_text(cr,c);
+	}
+	for(i=Blank;i<(width-Blank);i=i+5)
+	{
+		cairo_move_to(cr,i,height-Blank);
+		cairo_line_to(cr,i,height-Blank+3);
+	}
+    cairo_stroke(cr);
+
+    if(datas[0]!=NULL)
+    {
+    	for(j=0;j<8;j++)
+    	{
+    		last_point[j]=0;
+    	}
+
+		if(num>700)/* X-axis starting value adjustment */
+		{
+			x_o=((num-700)/100+1)*100;
+		}
+		else x_o=0;
+
+		next=48;
+		for(j=x_o;j<num;j++)
+		{
+	       	cairo_set_source_rgb(cr,0,1,0);/* Draw green line pulse1 */
+	    	cairo_set_line_width(cr,1);
+			recv[0]=datas[j][0];
+			cairo_move_to(cr,next/2,height-Blank-last_point[0]*small_sp);
+			next++;
+			cairo_line_to(cr,next/2,height-Blank-recv[0]*small_sp);
+			last_point[0]=recv[0];
+		    cairo_stroke(cr);
+
+		    next--;
+	       	cairo_set_source_rgb(cr,1,0,0);/* Draw red line pulse2 */
+	    	cairo_set_line_width(cr,1);
+			recv[1]=datas[j][1];
+			cairo_move_to(cr,next/2,height-Blank-last_point[1]*small_sp);
+			next++;
+			cairo_line_to(cr,next/2,height-Blank-recv[1]*small_sp);
+			last_point[1]=recv[1];
+		    cairo_stroke(cr);
+
+		    next--;
+	       	cairo_set_source_rgb(cr,0,0,1);/* Draw blue line pulse3 */
+	    	cairo_set_line_width(cr,1);
+			recv[2]=datas[j][2];
+			cairo_move_to(cr,next/2,height-Blank-last_point[2]*small_sp);
+			next++;
+			cairo_line_to(cr,next/2,height-Blank-recv[2]*small_sp);
+			last_point[2]=recv[2];
+		    cairo_stroke(cr);
+		}
+		next--;
+    }
+	cairo_show_page(cr);
+	cairo_surface_destroy(report_surface);
+	cairo_destroy(cr);
+}
+
+/* Create report window */
+GtkWidget *create_report_window()
+{
+	GtkWidget *report_window;
+	GtkWidget *fixed;
+	GtkWidget *report_button;
+	GtkWidget *max,*min,*run_time,*date_time,*name;
+	GtkWidget *name_label;
+
+   report_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+   name = gtk_entry_new ();
+   name_label = gtk_label_new ("Note Taker:");
+   gtk_window_set_title (GTK_WINDOW (report_window), "Window For Report");
+   gtk_window_set_default_size(GTK_WINDOW(report_window), 300, 450);
+   fixed = gtk_fixed_new();
+
+   max = gtk_check_button_new_with_label ("Record maximum");
+   min = gtk_check_button_new_with_label ("Record minimum");
+   run_time = gtk_check_button_new_with_label ("Record running time");
+   date_time = gtk_check_button_new_with_label ("Record running date");
+   report_button = gtk_button_new_with_label("Create report");
+   gtk_fixed_put(GTK_FIXED(fixed), name_label, 20, 20);
+   gtk_fixed_put(GTK_FIXED(fixed), name, 100, 20);
+   gtk_fixed_put(GTK_FIXED(fixed), max, 20, 50);
+   gtk_fixed_put(GTK_FIXED(fixed), min, 20, 80);
+   gtk_fixed_put(GTK_FIXED(fixed), run_time, 20, 110);
+   gtk_fixed_put(GTK_FIXED(fixed), date_time, 20, 140);
+   gtk_fixed_put(GTK_FIXED(fixed), report_button, 20, 400);
+
+   gtk_widget_set_size_request(name, 50, 20);
+   gtk_widget_set_size_request(max, 80, 20);
+   gtk_widget_set_size_request(min, 80, 20);
+   gtk_widget_set_size_request(run_time, 80, 20);
+   gtk_widget_set_size_request( date_time, 80, 20);
+   gtk_widget_set_size_request(report_button, 80, 20);
+
+   gtk_container_add(GTK_CONTAINER(report_window), fixed);
+
+   g_signal_connect (G_OBJECT (max), "toggled",G_CALLBACK (check_toggled),(gpointer) max);
+   g_signal_connect (G_OBJECT (min), "toggled",G_CALLBACK (check_toggled),(gpointer) min);
+   g_signal_connect (G_OBJECT (run_time), "toggled",G_CALLBACK (check_toggled),(gpointer) run_time);
+   g_signal_connect (G_OBJECT (date_time), "toggled",G_CALLBACK (check_toggled),(gpointer) date_time);
+   g_signal_connect(G_OBJECT(report_button),"clicked",G_CALLBACK(on_report_button_clicked), NULL);//(gpointer) surface);
+
+   return report_window;
+}
+
+/* pre_report_button button function */
+void on_pre_report_button_clicked(GtkButton *button,gpointer user_data)
+{
+	report_window = create_report_window();
+	gtk_widget_show_all(report_window);
+}
+
+/***************************************************************************************
+*    Function:
+*    Description:
+***************************************************************************************/
+
+/* Menu key test */
+void on_menu_activate(GtkMenuItem* item,gpointer data)
+{
+   	g_print("menuitem %s is pressed.\n",(gchar*)data);
+}
+
+/* Clean the input text */
+void on_cls_button_clicked()
+{
+	GtkTextIter start,end;
+	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(input_buffer),&start,&end);/* Retrieves the first and last iterators in the buffer */
+	gtk_text_buffer_delete(GTK_TEXT_BUFFER(input_buffer),&start,&end);
+}
+
+/* Stop the GTK+ main loop function. */
+static void destroy (GtkWidget *window,gpointer data)
+{
+	int i;
+	for(i=0;i<360000;i++)
+	{
+		g_free(datas[i]);
+	}
+	g_free(datas);
+
+	gtk_main_quit ();
+}
 
 int main (int argc,char *argv[])
 {
-	int i=0;
+	gint i=0;
 	GtkWidget *window;
-	GtkWidget *label1,*label2,*label3,*label4,*label5,*label6,*label7,*label8;
-	GtkWidget *conn_button,*close_button,*send_button;
+	GtkWidget *label1,*label2,*label3,*label4,*label5,*label6,*label7,*label8,*label9;
+	GtkWidget *conn_button,*close_button,*send_button,*pre_report_button;
 	GtkWidget *rece_view;
-	GtkWidget *send_view;
 	GtkWidget *da;
 
 	GtkWidget *menubar;
   	GtkWidget *menu;
-  	GtkWidget *editmenu;
-  	GtkWidget *helpmenu;
-  	GtkWidget *rootmenu;
-  	GtkWidget *menuitem;
+  	GtkWidget *editmenu,*helpmenu,*rootmenu,*menuitem;
   	GtkAccelGroup *accel_group;
 
 	GtkWidget *grid;
-	GtkWidget *scrolled1,*scrolled2;
+	GtkWidget *scrolled1;
 
 	gtk_init (&argc, &argv);
 	struct EntryStruct entries;
@@ -611,12 +868,10 @@ int main (int argc,char *argv[])
 		datas[i]=(gint *)g_malloc(sizeof(gint) * 8);
 	}
 
-
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title (GTK_WINDOW (window), "Window For Fatigue-Test");
 	gtk_container_set_border_width (GTK_CONTAINER (window), 0);
 	gtk_widget_set_size_request (window, 800, 600);
-	g_signal_connect (G_OBJECT (window), "destroy",G_CALLBACK (destroy), NULL);
 
 	grid=gtk_grid_new ();
 
@@ -628,61 +883,68 @@ int main (int argc,char *argv[])
 	label6 = gtk_label_new ("PWM:");
 	label7 = gtk_label_new ("Duty Cycle:");
 	label8 = gtk_label_new ("PWM-DIR:");
+	label9 = gtk_label_new ("Messages:");
 	entries.IP = (GtkEntry*)gtk_entry_new ();
 	entries.Port = (GtkEntry*)gtk_entry_new ();
 	entries1.DA1 = (GtkEntry*)gtk_entry_new ();
 	entries1.DA2 = (GtkEntry*)gtk_entry_new ();
 	entries1.D0 = (GtkEntry*)gtk_entry_new ();
 	entries1.PWM = (GtkEntry*)gtk_entry_new ();
-	entries1.PMW_Duty = (GtkEntry*)gtk_entry_new ();
+	entries1.PWM_Duty = (GtkEntry*)gtk_entry_new ();
 	entries1.PWM_DIR = (GtkEntry*)gtk_entry_new ();
 	rece_view = gtk_text_view_new ();
-	send_view = gtk_text_view_new ();
-	send_button= gtk_button_new_with_label ("Send");
-
-	rece_view=gtk_text_view_new();
-    send_view=gtk_text_view_new();
-
 	da = gtk_drawing_area_new();
+	accel_group=gtk_accel_group_new();
 
- 	width = gtk_widget_get_allocated_width (da);
-  	height = gtk_widget_get_allocated_height (da);
+	gtk_entry_set_text(GTK_ENTRY(entries.IP), "127.0.0.1");
+	gtk_entry_set_text(GTK_ENTRY(entries.Port), "8500");
+	gtk_entry_set_text(GTK_ENTRY(entries1.DA1), "0");
+	gtk_entry_set_text(GTK_ENTRY(entries1.DA2), "0");
+	gtk_entry_set_text(GTK_ENTRY(entries1.D0), "0");
+	gtk_entry_set_text(GTK_ENTRY(entries1.PWM), "0");
+	gtk_entry_set_text(GTK_ENTRY(entries1.PWM_Duty), "0");
+	gtk_entry_set_text(GTK_ENTRY(entries1.PWM_DIR), "0");
+	gtk_entry_set_alignment(GTK_ENTRY(entries1.DA1), 1);
+	gtk_entry_set_alignment(GTK_ENTRY(entries1.DA2), 1);
+	gtk_entry_set_alignment(GTK_ENTRY(entries1.D0), 1);
+	gtk_entry_set_alignment(GTK_ENTRY(entries1.PWM), 1);
+	gtk_entry_set_alignment(GTK_ENTRY(entries1.PWM_Duty), 1);
+	gtk_entry_set_alignment(GTK_ENTRY(entries1.PWM_DIR), 1);
+
+    g_timeout_add(10, (GSourceFunc) time_handler, (gpointer) da);
+
+	/* Get the buffer of textbox */
+	show_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(rece_view));
+	/* Set textbox to diseditable */
+	gtk_text_view_set_editable(GTK_TEXT_VIEW(rece_view),FALSE);
+	/* Scroll window */
+	scrolled1=gtk_scrolled_window_new(NULL,NULL);
+	/* Create a textbox */
+	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled1),rece_view);
+	/* Setting of window */
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled1),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);
 
 	g_signal_connect (G_OBJECT(da), "draw",G_CALLBACK (draw_callback), NULL);
     g_signal_connect (G_OBJECT(da),"configure-event",G_CALLBACK (draw_configure_event), NULL);
-    g_timeout_add(10, (GSourceFunc) time_handler, (gpointer) da);
 
-	/* get the buffer of textbox */
-	show_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(rece_view));
-	input_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(send_view));
-	/* set textbox to diseditable */
-	gtk_text_view_set_editable(GTK_TEXT_VIEW(rece_view),FALSE);
-	/* scroll window */
-	scrolled1=gtk_scrolled_window_new(NULL,NULL);
-	scrolled2=gtk_scrolled_window_new(NULL,NULL);
-	/* create a textbox */
-	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled1),rece_view);
-	gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolled2),send_view);
-	/* setting of window */
-	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled1),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);
-	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled2),GTK_POLICY_AUTOMATIC,GTK_POLICY_AUTOMATIC);
-
-
-
-	g_signal_connect(G_OBJECT(send_button), "clicked", G_CALLBACK(on_send_button_clicked),NULL);
-
-
+    /* Create a new button that send messages */
+	send_button= gtk_button_new_with_label ("Send");
+	g_signal_connect(G_OBJECT(send_button), "clicked", G_CALLBACK(on_send_button_clicked),(gpointer) &entries1);
 	conn_button = gtk_button_new_with_label ("Connect");
 	gtk_button_set_relief (GTK_BUTTON (conn_button), GTK_RELIEF_NONE);
     g_signal_connect(G_OBJECT(conn_button), "clicked", G_CALLBACK(on_button1_clicked),(gpointer) &entries);
-	/* Create a new button that has a mnemonic key of Alt+C. */
+
+    /* Create a new button that has a mnemonic key of Alt+C. */
 	close_button = gtk_button_new_with_mnemonic ("Close");
 	gtk_button_set_relief (GTK_BUTTON (close_button), GTK_RELIEF_NONE);
-	g_signal_connect_swapped (G_OBJECT (close_button), "clicked",G_CALLBACK (gtk_widget_destroy),(gpointer) window);
-	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_widget_destroy), NULL);
+	g_signal_connect_swapped (G_OBJECT (close_button), "clicked",G_CALLBACK (destroy),(gpointer) window);
+	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(destroy), NULL);
 
-	accel_group=gtk_accel_group_new();
+	/* Create a new button that prepare for the report */
+	pre_report_button= gtk_button_new_with_label ("Prepare report");
+	g_signal_connect(G_OBJECT(pre_report_button), "clicked",G_CALLBACK (on_pre_report_button_clicked),(gpointer) surface);
 
+	/* Create a menuitem to expand */
 	menu=gtk_menu_new();
 	menuitem=gtk_image_menu_item_new_from_stock(GTK_STOCK_NEW,accel_group);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menu),menuitem);
@@ -732,17 +994,19 @@ int main (int argc,char *argv[])
   	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu),helpmenu);
   	gtk_menu_shell_append(GTK_MENU_SHELL(menubar),rootmenu);
 
+  	/* Use grid to layout gtkWidgets */
 	gtk_window_add_accel_group(GTK_WINDOW(window),accel_group);
-	//void gtk_grid_attach (GtkGrid  *grid,GtkWidget *child,gint left,gint top,gint width,gint height);
-	gtk_grid_attach (GTK_GRID (grid), menubar, 0, 0,850, 30);
+	/* gtk_grid_attach (GtkGrid  *grid,GtkWidget *child,gint left,gint top,gint width,gint height); */
+	gtk_grid_attach (GTK_GRID (grid), menubar, 0, 0,825, 30);
 	gtk_grid_attach (GTK_GRID (grid),  label1, 0, 50, 50, 30);
 	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries.IP), 50, 50, 100, 30);
 	gtk_grid_attach (GTK_GRID (grid),  label2, 150, 50, 50, 40);
-	gtk_grid_attach (GTK_GRID (grid), GTK_WIDGET(entries.Port), 200, 50, 100, 30);
+	gtk_grid_attach (GTK_GRID (grid), GTK_WIDGET(entries.Port), 200, 50, 50, 30);
 	gtk_grid_attach (GTK_GRID (grid),  conn_button, 0, 100, 80, 30);
 	gtk_grid_attach (GTK_GRID (grid),  close_button, 100, 100, 80, 30);
 	gtk_grid_attach (GTK_GRID (grid),  da, 5, 150, 687, 495);
-	gtk_grid_attach (GTK_GRID (grid),  scrolled1, 700, 150, 115, 100);
+	gtk_grid_attach (GTK_GRID (grid),  label9, 700, 150, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  scrolled1, 765, 150, 50, 100);
 	gtk_grid_attach (GTK_GRID (grid),  label3, 690, 250, 80, 50);
 	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.DA1), 765, 250, 50, 50);
 	gtk_grid_attach (GTK_GRID (grid),  label4, 690, 280, 80, 50);
@@ -752,12 +1016,12 @@ int main (int argc,char *argv[])
 	gtk_grid_attach (GTK_GRID (grid),  label6, 690, 340, 80, 50);
 	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM), 765, 340, 50, 50);
 	gtk_grid_attach (GTK_GRID (grid),  label7, 690, 370, 80, 50);
-	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PMW_Duty), 765, 370, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM_Duty), 765, 370, 50, 50);
 	gtk_grid_attach (GTK_GRID (grid),  label8, 690, 400, 80, 50);
 	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM_DIR), 765, 400, 50, 50);
 
-	//gtk_grid_attach (GTK_GRID (grid),  scrolled2, 700, 255, 180, 100);
 	gtk_grid_attach (GTK_GRID (grid),  send_button, 765, 450, 50, 20);
+	gtk_grid_attach (GTK_GRID (grid),  pre_report_button, 765, 480, 50, 20);
 
 	gtk_grid_set_row_spacing(GTK_GRID(grid),1);
 	gtk_grid_set_column_spacing (GTK_GRID(grid),1);
