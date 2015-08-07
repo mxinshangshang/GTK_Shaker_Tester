@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <cairo-pdf.h>
+#include <math.h>
 
 //#define _WIN32_ 1    /* Compile for WIN32 */
 #define _LINUX_ 1    /* Compile for Linux */
@@ -59,6 +60,7 @@ gint issucceed=-1;
 GtkTextBuffer *show_buffer,*input_buffer;
 gboolean timer = TRUE;
 static cairo_surface_t *surface = NULL;
+static cairo_surface_t *surface2 = NULL;
 GtkWidget *report_window=NULL;
 
 gint last_point[8];
@@ -68,6 +70,7 @@ gboolean has_max=FALSE;
 gboolean has_min=FALSE;
 gboolean has_run_time=FALSE;
 gboolean has_date_time=FALSE;
+gdouble arc_i=0.0;
 
 struct EntryStruct
 {
@@ -219,7 +222,7 @@ void send_to_mysql(gint rcvd_mess[])
 
         if (!res)
         {
-        	g_print("Inserted %lu rows\n", (unsigned long)mysql_affected_rows(&my_connection));
+        	//g_print("Inserted %lu rows\n", (unsigned long)mysql_affected_rows(&my_connection));
         }
         else
         {
@@ -243,7 +246,7 @@ void send_to_mysql(gint rcvd_mess[])
 *    Description:  waveform presentation
 ***************************************************************************************/
 
-/* Create a new surface of the appropriate size to store our scribbles */
+/* Create a new surface of the appropriate size to store our waveform */
 static gboolean
 draw_configure_event (GtkWidget         *widget,
                       GdkEventConfigure *event,
@@ -329,7 +332,7 @@ draw_callback (GtkWidget *widget,
 	{
 		cairo_move_to(cr,Blank-6,i);
 		cairo_line_to(cr,width-Blank,i);
-		cairo_move_to(cr,Blank-16,i);
+		cairo_move_to(cr,Blank-25,i);
 		cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
 		cairo_set_font_size (cr, 12.0);
 		sprintf(c, "%.0lf", y);
@@ -417,11 +420,101 @@ gboolean time_handler (GtkWidget *widget)
 {
   if (surface == NULL) return FALSE;
 
-  if (!timer) return FALSE;
+  //if (!timer) return FALSE;
 
   gtk_widget_queue_draw_area(widget,0,0,850,550);
   return TRUE;
 }
+
+/***************************************************************************************
+*    Function:
+*    Description:  Pointer instrument
+***************************************************************************************/
+/* Create a new surface2 of the appropriate size to store our Pointer instrument */
+static gboolean
+draw_configure_event2 (GtkWidget         *widget,
+                      GdkEventConfigure *event,
+                      gpointer           data)
+{
+	  GtkAllocation allocation;
+	  cairo_t *cr;
+
+	  if (surface2)
+	    cairo_surface_destroy (surface2);
+
+	  gtk_widget_get_allocation (widget, &allocation);
+	  surface2 = gdk_window_create_similar_surface (gtk_widget_get_window (widget),
+	                                               CAIRO_CONTENT_COLOR,
+	                                               allocation.width,
+	                                               allocation.height);
+	  /* Initialize the surface to white */
+	  cr = cairo_create (surface2);
+	  cairo_set_source_rgb (cr, 1, 1, 1);
+	  cairo_paint (cr);
+	  cairo_destroy (cr);
+
+	  /* We've handled the configure event, no need for further processing. */
+	  return TRUE;
+}
+
+/* Redraw the screen from the surface */
+static gboolean
+draw_callback2 (GtkWidget *widget,
+               cairo_t   *cr,
+               gpointer   data)
+{
+	gdouble width, height;
+ 	width = gtk_widget_get_allocated_width (widget);
+  	height = gtk_widget_get_allocated_height (widget);
+
+  	cairo_set_source_surface (cr, surface2, 0, 0);
+   	//cairo_paint (cr);
+  	cairo_set_source_rgb (cr, 0, 0, 0);
+
+   	double xc = width/2;
+   	double yc = height;
+   	double radius = width/2-10;
+   	double angle1 = 0.0  * (M_PI/180.0);  /* angles are specified */
+   	double angle2 = 180.0 * (M_PI/180.0);  /* in radians           */
+
+   	cairo_set_line_width (cr, 5.0);
+   	cairo_arc_negative (cr, xc, yc, radius, angle1, angle2);
+   	cairo_stroke (cr);
+
+   	/* draw helping lines */
+   	cairo_set_source_rgba (cr, 0, 0, 0.6, 0.6);
+   	cairo_set_line_width (cr, 6.0);
+
+   	cairo_arc (cr, xc, yc, 10.0, 0, 2*M_PI);
+   	cairo_fill (cr);
+
+   	cairo_arc (cr, xc, yc, radius, angle1, angle1);
+   	cairo_line_to (cr, xc, yc);
+   	cairo_arc (cr, xc, yc, radius, angle2, angle2);
+   	cairo_line_to (cr, xc, yc);
+   	cairo_stroke (cr);
+  	cairo_set_source_rgb (cr, 1, 0, 0);
+   	cairo_set_line_width (cr, 6.0);
+   	cairo_arc (cr, xc, yc, radius-10 , (180+arc_i)* (M_PI/180.0), (180+arc_i) * (M_PI/180.0));
+   	cairo_line_to (cr, xc, yc);
+   	cairo_stroke (cr);
+   	arc_i=arc_i+10;
+   	if(arc_i==180) arc_i=0;
+
+  	return FALSE;
+}
+
+gboolean time_handler2 (GtkWidget *widget)
+{
+  if (surface2 == NULL) return FALSE;
+
+  //if (!timer) return FALSE;
+
+  gtk_widget_queue_draw_area(widget,0, 0, 600, 600);
+  return TRUE;
+}
+
+
 
 /***************************************************************************************
 *    Function:
@@ -485,7 +578,7 @@ gpointer recv_func(gpointer arg)
 			exit(1);
 		}
 	    send_to_mysql(bufferIn); /* Record in the database */
-	    g_print("Messages:  %d %d %d %d %d %d %d %d\n",bufferIn[0],bufferIn[1],bufferIn[2],bufferIn[3],bufferIn[4],bufferIn[5],bufferIn[6],bufferIn[7]);
+	    //g_print("Messages:  %d %d %d %d %d %d %d %d\n",bufferIn[0],bufferIn[1],bufferIn[2],bufferIn[3],bufferIn[4],bufferIn[5],bufferIn[6],bufferIn[7]);
 	    for(i=0;i<8;i++)
 	    {
 	    	datas[num][i]=bufferIn[i];
@@ -735,7 +828,7 @@ void on_report_button_clicked(GtkButton *button,gpointer user_data)
 	{
 		cairo_move_to(cr,Blank+ tr_right-6,i);
 		cairo_line_to(cr,width+ tr_right-Blank,i);
-		cairo_move_to(cr,Blank+ tr_right-16,i);
+		cairo_move_to(cr,Blank+ tr_right-20,i);
 		cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
 		cairo_set_font_size (cr, 12.0);
 		sprintf(c, "%.0lf", y);
@@ -915,7 +1008,7 @@ int main (int argc,char *argv[])
 	GtkWidget *conn_button,*close_button,*send_button,*pre_report_button;
 	GtkWidget *rece_view;
 	GtkWidget *da;
-
+	GtkWidget *sector;
 	GtkWidget *menubar;
   	GtkWidget *menu;
   	GtkWidget *editmenu,*helpmenu,*rootmenu,*menuitem;
@@ -937,7 +1030,7 @@ int main (int argc,char *argv[])
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title (GTK_WINDOW (window), "Window For Fatigue-Test");
 	gtk_container_set_border_width (GTK_CONTAINER (window), 0);
-	gtk_widget_set_size_request (window, 800, 600);
+	gtk_widget_set_size_request (window, 850, 650);
 
 	grid=gtk_grid_new ();
 
@@ -960,6 +1053,7 @@ int main (int argc,char *argv[])
 	entries1.PWM_DIR = (GtkEntry*)gtk_entry_new ();
 	rece_view = gtk_text_view_new ();
 	da = gtk_drawing_area_new();
+	sector = gtk_drawing_area_new();
 	accel_group=gtk_accel_group_new();
 
 	gtk_entry_set_text(GTK_ENTRY(entries.IP), "127.0.0.1");
@@ -978,6 +1072,7 @@ int main (int argc,char *argv[])
 	gtk_entry_set_alignment(GTK_ENTRY(entries1.PWM_DIR), 1);
 
     g_timeout_add(10, (GSourceFunc) time_handler, (gpointer) da);
+    g_timeout_add(100, (GSourceFunc) time_handler2, (gpointer) sector);
 
 	/* Get the buffer of textbox */
 	show_buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(rece_view));
@@ -992,6 +1087,8 @@ int main (int argc,char *argv[])
 
 	g_signal_connect (G_OBJECT(da), "draw",G_CALLBACK (draw_callback), NULL);
     g_signal_connect (G_OBJECT(da),"configure-event",G_CALLBACK (draw_configure_event), NULL);
+	g_signal_connect (G_OBJECT(sector), "draw",G_CALLBACK (draw_callback2), NULL);
+    g_signal_connect (G_OBJECT(sector),"configure-event",G_CALLBACK (draw_configure_event2), NULL);
 
     /* Create a new button that send messages */
 	send_button= gtk_button_new_with_label ("Send");
@@ -1063,7 +1160,7 @@ int main (int argc,char *argv[])
   	/* Use grid to layout gtkWidgets */
 	gtk_window_add_accel_group(GTK_WINDOW(window),accel_group);
 	/* gtk_grid_attach (GtkGrid  *grid,GtkWidget *child,gint left,gint top,gint width,gint height); */
-	gtk_grid_attach (GTK_GRID (grid), menubar, 0, 0,825, 30);
+	gtk_grid_attach (GTK_GRID (grid), menubar, 0, 0, 825, 30);
 	gtk_grid_attach (GTK_GRID (grid),  label1, 0, 50, 50, 30);
 	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries.IP), 50, 50, 100, 30);
 	gtk_grid_attach (GTK_GRID (grid),  label2, 150, 50, 50, 40);
@@ -1072,22 +1169,23 @@ int main (int argc,char *argv[])
 	gtk_grid_attach (GTK_GRID (grid),  close_button, 100, 100, 80, 30);
 	gtk_grid_attach (GTK_GRID (grid),  da, 5, 150, 687, 495);
 	gtk_grid_attach (GTK_GRID (grid),  label9, 700, 150, 50, 50);
-	gtk_grid_attach (GTK_GRID (grid),  scrolled1, 765, 150, 50, 100);
-	gtk_grid_attach (GTK_GRID (grid),  label3, 690, 250, 80, 50);
-	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.DA1), 765, 250, 50, 50);
-	gtk_grid_attach (GTK_GRID (grid),  label4, 690, 280, 80, 50);
-	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.DA2), 765, 280, 50, 50);
-	gtk_grid_attach (GTK_GRID (grid),  label5, 690, 310, 80, 50);
-	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.D0), 765, 310, 50, 50);
-	gtk_grid_attach (GTK_GRID (grid),  label6, 690, 340, 80, 50);
-	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM), 765, 340, 50, 50);
-	gtk_grid_attach (GTK_GRID (grid),  label7, 690, 370, 80, 50);
-	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM_Duty), 765, 370, 50, 50);
-	gtk_grid_attach (GTK_GRID (grid),  label8, 690, 400, 80, 50);
-	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM_DIR), 765, 400, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  scrolled1, 765, 150, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  label3, 690, 200, 80, 50);
+	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.DA1), 765, 200, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  label4, 690, 230, 80, 50);
+	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.DA2), 765, 230, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  label5, 690, 260, 80, 50);
+	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.D0), 765, 260, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  label6, 690, 290, 80, 50);
+	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM), 765, 290, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  label7, 690, 320, 80, 50);
+	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM_Duty), 765, 320, 50, 50);
+	gtk_grid_attach (GTK_GRID (grid),  label8, 690, 350, 80, 50);
+	gtk_grid_attach (GTK_GRID (grid),  GTK_WIDGET(entries1.PWM_DIR), 765, 350, 50, 50);
 
-	gtk_grid_attach (GTK_GRID (grid),  send_button, 765, 450, 50, 20);
-	gtk_grid_attach (GTK_GRID (grid),  pre_report_button, 765, 480, 50, 20);
+	gtk_grid_attach (GTK_GRID (grid),  send_button, 765, 400, 50, 20);
+	gtk_grid_attach (GTK_GRID (grid),  pre_report_button, 765, 430, 50, 20);
+	gtk_grid_attach (GTK_GRID (grid),  sector, 700, 470, 115, 175);
 
 	gtk_grid_set_row_spacing(GTK_GRID(grid),1);
 	gtk_grid_set_column_spacing (GTK_GRID(grid),1);
