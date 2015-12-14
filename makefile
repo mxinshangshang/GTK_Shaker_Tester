@@ -13,7 +13,7 @@ CFLAGS= -g
 #CFLAGS= -o 
  
 Fatigue_Tester:Fatigue_Tester.o
-	$(CC) -Wall $(OBJ) $(CFLAGS) -o Fatigue_Tester `pkg-config gtk+-3.0 --libs`  -l pthread  -export-dynamic
+	$(CC) -Wall $(OBJ) $(CFLAGS) -o Fatigue_Tester  -I/usr/include/mysql -L/usr/lib/mysql -lmysqlclient `pkg-config gtk+-3.0 --libs`  -l pthread  -export-dynamic
 Fatigue_Tester.o:Fatigue_Tester.c
 	$(CC) -Wall $(CFLAGS) -c $< `pkg-config gtk+-3.0 --cflags`
 clean:
