@@ -500,6 +500,7 @@ draw_callback2(GtkWidget *widget,
 	cairo_t   *cr,
 	gpointer   data)
 {
+	PangoLayout *layout;
 	gint i ;
 	gchar c[32];
 	gdouble width, height;
@@ -561,12 +562,15 @@ draw_callback2(GtkWidget *widget,
 	}
 
 	cairo_set_font_size(cr, 15.0);
-	cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+	cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
 	cairo_set_source_rgba(cr, 0, 0, 0, 1);
 	cairo_move_to(cr, xc-30, yc + 30);
-	//const gchar* y="试验力(kN)";
-	cairo_show_text(cr, _("试验力(kN)"));	
-	//cairo_show_text(cr, g_convert("试验力(kN)",-1,"UTF-8","GB2312",NULL,NULL,NULL));
+	//const gchar *y=_("试验力(kN)");
+	//cairo_show_text(cr, y);
+	layout = pango_cairo_create_layout (cr);
+	pango_layout_set_text (layout, "试验力(kN)", -1);	
+	pango_cairo_show_layout (cr, layout);
+	g_object_unref (layout);
 	cairo_stroke(cr);
 
 	cairo_set_source_rgb(cr, 1, 0, 0);
@@ -635,6 +639,7 @@ draw_callback3(GtkWidget *widget,
 	cairo_t   *cr,
 	gpointer   data)
 {
+	PangoLayout *layout;
 	gdouble width, height;
 	gchar c[8];
 	width = gtk_widget_get_allocated_width(widget);
@@ -654,28 +659,36 @@ draw_callback3(GtkWidget *widget,
 	cairo_set_source_rgb(cr, 0.2, 1, 1);
 	cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
 	cairo_set_font_size (cr, 50.0);
-	cairo_move_to (cr, width/4-150, height-30);
+	cairo_move_to (cr, width/4-160, height-30);
 	cairo_show_text (cr, "99.99");
-	cairo_move_to (cr, width/4*2-150, height-30);
+	cairo_move_to (cr, width/4*2-160, height-30);
 	cairo_show_text (cr, "99.99");
-	cairo_move_to (cr, width/4*3-150, height-30);
+	cairo_move_to (cr, width/4*3-160, height-30);
 	sprintf(c,"%.1lf",time_second);
 	cairo_show_text (cr, c);
-	cairo_move_to (cr, width-150, height-30);
+	cairo_move_to (cr, width-160, height-30);
 	cairo_show_text (cr, "99.99");
 	cairo_stroke (cr);
 
+	cairo_save (cr);
 	cairo_set_source_rgb(cr, 1, 1, 1);//white
-	cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
-	cairo_set_font_size (cr, 20.0);
+	cairo_select_font_face (cr, "Sans", CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_NORMAL);
+	cairo_set_font_size (cr, 20.0);	
+	layout = pango_cairo_create_layout (cr);
+	pango_cairo_show_layout (cr, layout);
 	cairo_move_to (cr, 0+5, height-75);
-	cairo_show_text (cr, _("试验力(kN)"));
+	pango_layout_set_text (layout, "试验力(kN)", -1);
+	pango_cairo_show_layout (cr, layout);
 	cairo_move_to (cr, width/4+5, height-75);
-	cairo_show_text (cr, _("变形(mm)"));
+	pango_layout_set_text (layout, "变形(mm)", -1);
+	pango_cairo_show_layout (cr, layout);
 	cairo_move_to (cr, width/2+5, height-75);
-	cairo_show_text (cr, _("时间(s)"));
+	pango_layout_set_text (layout, "时间(s)", -1);
+	pango_cairo_show_layout (cr, layout);
 	cairo_move_to (cr, width/4*3+5, height-75);
-	cairo_show_text (cr, _("位移(mm)"));	
+	pango_layout_set_text (layout, "位移(mm)", -1);
+	pango_cairo_show_layout (cr, layout);
+	g_object_unref (layout);	
 	cairo_stroke (cr);
 
 	cairo_set_line_width (cr, 5);
@@ -1259,9 +1272,10 @@ gint main(gint argc, char *argv[])
 	GtkWidget *da;
 	GtkWidget *sector;
 	GtkWidget *menubar;
-	GtkWidget *menu;
-	GtkWidget *editmenu, *helpmenu, *rootmenu, *menuitem, *toolmenu, *winmenu, *ipmenu, *exitmenu;
-	GtkAccelGroup *accel_group;
+	GtkWidget *menu1, *menu2, *menu3, *menu4, *menu5, *menu6, *menu7;
+	GtkWidget *setmenu, *adjustmenu, *toolmenu, *winmenu, *helpmenu, *ipmenu, *exitmenu;
+	GtkWidget *s_force_sensor, *s_extensometer, *sys_para, *analy_para, *force_verfic, *extensometer_verfic, *dis_verific, *compress_db, *i_o_db, *lock, *Float, *auto_arrange, *array_win, *move_up_left, *about, *reg;
+	//GtkAccelGroup *accel_group;
 
 	GtkWidget *grid;
 	GtkWidget *scrolled1;
@@ -1279,7 +1293,7 @@ gint main(gint argc, char *argv[])
 	}
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_title(GTK_WINDOW(window), "Window For Fatigue-Test(Linux)");
+	gtk_window_set_title(GTK_WINDOW(window), "Window For Fatigue-Test (Linux)");
 	gtk_container_set_border_width(GTK_CONTAINER(window), 0);
 	gtk_widget_set_size_request(window, 1200, 650);
 
@@ -1300,8 +1314,6 @@ gint main(gint argc, char *argv[])
 	gtk_label_set_justify(GTK_LABEL(label11),GTK_JUSTIFY_CENTER);/*设置标号对齐方式为居中对齐*/
 	gtk_label_set_line_wrap(GTK_LABEL(label11),TRUE);/*打开自动换行*/
 	label12 = gtk_label_new(_("时间(s)"));
-	//entries.IP = (GtkEntry*)gtk_entry_new();
-	//entries.Port = (GtkEntry*)gtk_entry_new();
 	entries1.DA1 = (GtkEntry*)gtk_entry_new();
 	entries1.DA2 = (GtkEntry*)gtk_entry_new();
 	entries1.D0 = (GtkEntry*)gtk_entry_new();
@@ -1312,7 +1324,7 @@ gint main(gint argc, char *argv[])
 	da = gtk_drawing_area_new();
 	sector = gtk_drawing_area_new();
 	num = gtk_drawing_area_new();
-	accel_group = gtk_accel_group_new();
+	//accel_group = gtk_accel_group_new();
 
 	//gtk_entry_set_text(GTK_ENTRY(entries.IP), "111.186.100.57");
 	//gtk_entry_set_text(GTK_ENTRY(entries.Port), "8888");
@@ -1340,7 +1352,7 @@ gint main(gint argc, char *argv[])
 	/* Scroll window */
 	scrolled1 = gtk_scrolled_window_new(NULL, NULL);
 	/* Create a textbox */
-	gtk_container_add(GTK_CONTAINER(scrolled1), rece_view);
+	//gtk_container_add(GTK_CONTAINER(scrolled1), rece_view);
 	/* Setting of window */
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled1), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
 
@@ -1369,95 +1381,80 @@ gint main(gint argc, char *argv[])
 	g_signal_connect(G_OBJECT(pre_report_button), "clicked", G_CALLBACK(on_pre_report_button_clicked), (gpointer)surface);
 
 	/* Create a menuitem to expand */
+	/* Create a menuitem to expand */
 	menubar = gtk_menu_bar_new();
+	menu1 = gtk_menu_new();
+	menu2 = gtk_menu_new();
+	menu3 = gtk_menu_new();
+	menu4 = gtk_menu_new();
+	menu5 = gtk_menu_new();
+	menu6 = gtk_menu_new();
+	menu7 = gtk_menu_new();
+
+	setmenu = gtk_menu_item_new_with_label(_(" 设置 "));
+	adjustmenu = gtk_menu_item_new_with_label(_(" 调整 "));
+	toolmenu = gtk_menu_item_new_with_label(_(" 工具 "));
+	winmenu = gtk_menu_item_new_with_label(_(" 窗口 "));
+	helpmenu = gtk_menu_item_new_with_label(_(" 帮助 "));
+	ipmenu = gtk_menu_item_new_with_label(_(" IP "));
+	exitmenu = gtk_menu_item_new_with_label(_(" 退出 "));
+
+	s_force_sensor= gtk_menu_item_new_with_label(_(" 选择力传感器 "));
+	s_extensometer= gtk_menu_item_new_with_label(_(" 选择引伸计 "));
+	sys_para= gtk_menu_item_new_with_label(_(" 系统参数 "));
+	analy_para= gtk_menu_item_new_with_label(_(" 分析参数 "));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu1),s_force_sensor);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu1),s_extensometer);
+	//menuitem = gtk_separator_menu_item_new();
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu1),sys_para);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu1),analy_para);
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(setmenu),menu1);
+
+	force_verfic= gtk_menu_item_new_with_label(_(" 力传感器检定 "));
+	extensometer_verfic= gtk_menu_item_new_with_label(_(" 引伸计检定 "));
+	dis_verific= gtk_menu_item_new_with_label(_(" 位移检定 "));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu2),force_verfic);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu2),extensometer_verfic);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu2),dis_verific);
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(adjustmenu),menu2);
+
+	compress_db= gtk_menu_item_new_with_label(_(" 压缩数据库 "));
+	i_o_db= gtk_menu_item_new_with_label(_(" 数据库导入导出 "));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu3), compress_db);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu3), i_o_db);
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(toolmenu), menu3);
+
+	lock= gtk_menu_item_new_with_label(_(" 锁定 "));
+	Float= gtk_menu_item_new_with_label(_(" 浮动 "));
+	auto_arrange= gtk_menu_item_new_with_label(_(" 自动排列 "));
+	array_win= gtk_menu_item_new_with_label(_(" 排列子窗口 "));
+	move_up_left= gtk_menu_item_new_with_label(_(" 移动到屏幕左上角 "));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu4), lock);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu4), Float);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu4), auto_arrange);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu4), array_win);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu4), move_up_left);
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(winmenu), menu4);
+
+	about= gtk_menu_item_new_with_label(_(" 关于 "));
+	reg= gtk_menu_item_new_with_label(_(" 注册 "));
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu5), about);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu5), reg);
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(helpmenu), menu5);
+
+	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), setmenu);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), adjustmenu);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), toolmenu);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), winmenu);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), helpmenu);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), ipmenu);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), exitmenu);
+
+	g_signal_connect(G_OBJECT(ipmenu), "activate", G_CALLBACK(on_ip_menu_activate), NULL);
+	g_signal_connect(G_OBJECT(exitmenu), "activate", G_CALLBACK(destroy), (gpointer)window);
 	
-	rootmenu = gtk_menu_item_new_with_label(_(" 设置 "));
-	menu = gtk_menu_new();
-	menuitem = gtk_menu_item_new();//gtk_menu_item_new_with_mnemonic (GTK_STOCK_NEW, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 新建")));
-	menuitem = gtk_menu_item_new_with_mnemonic ("_Open");//, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 打开")));
-	menuitem = gtk_menu_item_new();//GTK_STOCK_SAVE, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 保存")));
-	menuitem = gtk_menu_item_new();//GTK_STOCK_SAVE_AS, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 另存为")));
-	menuitem = gtk_separator_menu_item_new();
-	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);	
-	menuitem = gtk_menu_item_new();//GTK_STOCK_QUIT, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 退出")));
-	
-	//rootmenu = gtk_menu_item_new_with_label(_(" 设置 "));
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu), menu);
-	//menubar = gtk_menu_bar_new();
-	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), rootmenu);
-	
-	rootmenu = gtk_menu_item_new_with_label(_(" 调整 "));	
-	editmenu = gtk_menu_new();	
-	menuitem = gtk_menu_item_new();//GTK_STOCK_CUT, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 剪切 ")));
-	menuitem = gtk_menu_item_new();//GTK_STOCK_COPY, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_("复制 ")));
-	menuitem = gtk_menu_item_new();//GTK_STOCK_PASTE, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 粘贴 ")));
-	menuitem = gtk_menu_item_new();//GTK_STOCK_FIND, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(editmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 查找 ")));
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu), editmenu);	
-	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), rootmenu);
-
-	rootmenu = gtk_menu_item_new_with_label(_(" 工具 "));
-	toolmenu = gtk_menu_new();
-	menuitem = gtk_menu_item_new_with_label(_(" 工具 "));
-	gtk_menu_shell_append(GTK_MENU_SHELL(toolmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 工具 ")));
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu), toolmenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), rootmenu);
-
-	rootmenu = gtk_menu_item_new_with_label(_(" 窗口 "));
-	winmenu = gtk_menu_new();
-	menuitem = gtk_menu_item_new_with_label(_(" 窗口 "));
-	gtk_menu_shell_append(GTK_MENU_SHELL(winmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 窗口 ")));
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu), winmenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), rootmenu);
-	
-	rootmenu = gtk_menu_item_new_with_label(_(" 帮助 "));	
-	helpmenu = gtk_menu_new();
-	menuitem = gtk_menu_item_new();//GTK_STOCK_HELP, accel_group);
-	gtk_menu_shell_append(GTK_MENU_SHELL(helpmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 帮助 ")));
-	menuitem = gtk_menu_item_new_with_label(_(" 关于..."));
-	gtk_menu_shell_append(GTK_MENU_SHELL(helpmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_menu_activate), (gpointer)(_(" 关于 ")));
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu), helpmenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), rootmenu);
-
-	rootmenu = gtk_menu_item_new_with_label(_(" IP "));
-	ipmenu = gtk_menu_new();
-	menuitem = gtk_menu_item_new_with_label(_(" IP设置 "));
-	gtk_menu_shell_append(GTK_MENU_SHELL(ipmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(on_ip_menu_activate), NULL);
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu), ipmenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), rootmenu);
-
-	rootmenu = gtk_menu_item_new_with_label(_(" 退出 "));
-	exitmenu = gtk_menu_new();
-	menuitem = gtk_menu_item_new_with_label(_(" 退出 "));
-	gtk_menu_shell_append(GTK_MENU_SHELL(exitmenu), menuitem);
-	g_signal_connect(G_OBJECT(menuitem), "activate", G_CALLBACK(destroy), (gpointer)window);
-	gtk_menu_item_set_submenu(GTK_MENU_ITEM(rootmenu), exitmenu);
-	gtk_menu_shell_append(GTK_MENU_SHELL(menubar), rootmenu);
-
 	/* Use grid to layout gtkWidgets */
-	gtk_window_add_accel_group(GTK_WINDOW(window), accel_group);
+	//gtk_window_add_accel_group(GTK_WINDOW(window), accel_group);
 	/* gtk_grid_attach (GtkGrid  *grid,GtkWidget *child,gint left,gint top,gint width,gint height); */
 
 	gtk_grid_attach(GTK_GRID(grid), menubar, 0, 0, 1200, 30);
