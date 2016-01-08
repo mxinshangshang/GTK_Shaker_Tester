@@ -2,7 +2,7 @@
 *  File name:      Fatigue_Tester.c
 *  Author:         Mxin Chiang
 *  Version:        1.0
-*  Date:           12.28.2015
+*  Date:           01.08.2016
 *  Description:    Design a software accepts data sent from fatigue testing machine,
 *                  waveform presentation, recording in MySQL database,
 *                  data processing and generate pdf reports.
@@ -1182,42 +1182,107 @@ GtkWidget *create_report_window()
 	GtkWidget *report_window;
 	GtkWidget *fixed;
 	GtkWidget *report_button;
-	GtkWidget *max, *min, *run_time, *date_time, *name;
-	GtkWidget *name_label;
+	GtkWidget *batch, *num, *time, *temp, *name, *shape, *outer, *thick, *span, *Fbb, *sigma, *Eb;
+	GtkWidget *batch_label, *num_label, *time_label, *temp_label, *name_label, *shape_label, *outer_label, *thick_label, *span_label, *Fbb_label, *sigma_label, *Eb_label,*mult_label;
+	GtkWidget *calendar;
+	GtkWidget *combo;
+	GtkWidget *box;
+	GtkWidget *box1;
+	gint x,y,z;
 
 	report_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	name = gtk_entry_new();
-	name_label = gtk_label_new("Note Taker:");
-	gtk_window_set_title(GTK_WINDOW(report_window), "Window For Report");
-	gtk_window_set_default_size(GTK_WINDOW(report_window), 300, 450);
+	gtk_window_set_position(GTK_WINDOW(report_window), GTK_WIN_POS_CENTER);
 	fixed = gtk_fixed_new();
-
-	max = gtk_check_button_new_with_label("Record maximum");
-	min = gtk_check_button_new_with_label("Record minimum");
-	run_time = gtk_check_button_new_with_label("Record running time");
-	date_time = gtk_check_button_new_with_label("Record running date");
 	report_button = gtk_button_new_with_label("Create report");
-	gtk_fixed_put(GTK_FIXED(fixed), name_label, 20, 20);
-	gtk_fixed_put(GTK_FIXED(fixed), name, 100, 20);
-	gtk_fixed_put(GTK_FIXED(fixed), max, 20, 50);
-	gtk_fixed_put(GTK_FIXED(fixed), min, 20, 80);
-	gtk_fixed_put(GTK_FIXED(fixed), run_time, 20, 110);
-	gtk_fixed_put(GTK_FIXED(fixed), date_time, 20, 140);
-	gtk_fixed_put(GTK_FIXED(fixed), report_button, 20, 400);
+	calendar = gtk_calendar_new();
+	combo = gtk_combo_box_text_new_with_entry();
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo),_("圆材"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo),_("板材"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo),_("管材"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo),_("其他"));
+	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 1);
+	box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3);
+	box1 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3);
 
-	gtk_widget_set_size_request(name, 50, 20);
-	gtk_widget_set_size_request(max, 80, 20);
-	gtk_widget_set_size_request(min, 80, 20);
-	gtk_widget_set_size_request(run_time, 80, 20);
-	gtk_widget_set_size_request(date_time, 80, 20);
+	batch = gtk_entry_new();
+	batch_label = gtk_label_new(_("试验批号:"));
+	num = gtk_entry_new();
+	num_label = gtk_label_new(_("试验编号:"));
+	time = gtk_entry_new();
+	time_label = gtk_label_new(_("实验日期:"));
+	temp = gtk_entry_new();
+	temp_label = gtk_label_new(_("温度(℃):"));
+	name = gtk_entry_new();
+	name_label = gtk_label_new(_("试验人:"));
+	shape = gtk_entry_new();
+	shape_label = gtk_label_new(_("试样形状:"));
+	outer = gtk_entry_new();
+	outer_label = gtk_label_new(_("试样宽度(mm):"));
+	thick = gtk_entry_new();
+	thick_label = gtk_label_new(_("试样厚度(mm):"));
+	span = gtk_entry_new();
+	span_label = gtk_label_new(_("跨距(mm):"));
+	Fbb = gtk_entry_new();
+	Fbb_label = gtk_label_new(_("Fbb(kN):"));
+	sigma = gtk_entry_new();
+	sigma_label = gtk_label_new(_("Rbb(MPa):"));
+	Eb = gtk_entry_new();
+	Eb_label = gtk_label_new(_("mE(MPa):"));
+	mult_label = gtk_label_new(_("*"));
+
+
+	gtk_window_set_title(GTK_WINDOW(report_window), "Window For Report");
+	gtk_window_set_default_size(GTK_WINDOW(report_window), 120, 450);
+
 	gtk_widget_set_size_request(report_button, 80, 20);
 
-	gtk_container_add(GTK_CONTAINER(report_window), fixed);
+	x = 120;
+	y = 30;
+	z = 40;
+	gtk_fixed_put(GTK_FIXED(fixed), batch_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), batch, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), num_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), num, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), time_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), time, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), temp_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), temp, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), name_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), name, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), shape_label, 20, y);
+	gtk_box_pack_start(GTK_BOX(box1), combo, FALSE, FALSE, 1);
+	gtk_fixed_put(GTK_FIXED(fixed), box1, 100, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), outer_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), outer, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), thick_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), thick, x, y);
+	//gtk_box_pack_start(GTK_BOX(box), outer, FALSE, FALSE, 3);
+	//gtk_box_pack_start(GTK_BOX(box), thick_label, FALSE, FALSE, 3);
+	//gtk_box_pack_start(GTK_BOX(box), thick, FALSE, FALSE, 3);
+	//gtk_fixed_put(GTK_FIXED(fixed), box, 20, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), span_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), span, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), Fbb_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), Fbb, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), sigma_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), sigma, x, y);
+	y = y + z;
+	gtk_fixed_put(GTK_FIXED(fixed), Eb_label, 20, y);
+	gtk_fixed_put(GTK_FIXED(fixed), Eb, x, y);
+	y = y + 60;
+	gtk_fixed_put(GTK_FIXED(fixed), report_button, 20, y); 
 
-	g_signal_connect(G_OBJECT(max), "toggled", G_CALLBACK(check_max), (gpointer)max);
-	g_signal_connect(G_OBJECT(min), "toggled", G_CALLBACK(check_min), (gpointer)min);
-	g_signal_connect(G_OBJECT(run_time), "toggled", G_CALLBACK(check_run_time), (gpointer)run_time);
-	g_signal_connect(G_OBJECT(date_time), "toggled", G_CALLBACK(check_date_time), (gpointer)date_time);
+	gtk_container_add(GTK_CONTAINER(report_window), fixed);
 	g_signal_connect(G_OBJECT(report_button), "clicked", G_CALLBACK(on_report_button_clicked), NULL);//(gpointer) surface);
 
 	return report_window;
@@ -1276,6 +1341,7 @@ gint main(gint argc, char *argv[])
 	GtkWidget *setmenu, *adjustmenu, *toolmenu, *winmenu, *helpmenu, *ipmenu, *exitmenu;
 	GtkWidget *s_force_sensor, *s_extensometer, *sys_para, *analy_para, *force_verfic, *extensometer_verfic, *dis_verific, *compress_db, *i_o_db, *lock, *Float, *auto_arrange, *array_win, *move_up_left, *about, *reg;
 	//GtkAccelGroup *accel_group;
+	GtkWidget *box;
 
 	GtkWidget *grid;
 	GtkWidget *scrolled1;
@@ -1295,7 +1361,8 @@ gint main(gint argc, char *argv[])
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title(GTK_WINDOW(window), "Window For Fatigue-Test (Linux)");
 	gtk_container_set_border_width(GTK_CONTAINER(window), 0);
-	gtk_widget_set_size_request(window, 1200, 650);
+	gtk_widget_set_size_request(window, 1200, 600);
+	box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3);
 
 	grid = gtk_grid_new();
 
@@ -1310,9 +1377,7 @@ gint main(gint argc, char *argv[])
 	label9 = gtk_label_new("Messages:");
 	label10 = gtk_label_new(_("试验力-时间曲线"));
 	label11 = gtk_label_new(_("试验力(kN)"));
-	//gtk_widget_set_size_request(label11,1,10);/*设置标号尺寸*/
-	gtk_label_set_justify(GTK_LABEL(label11),GTK_JUSTIFY_CENTER);/*设置标号对齐方式为居中对齐*/
-	gtk_label_set_line_wrap(GTK_LABEL(label11),TRUE);/*打开自动换行*/
+	gtk_label_set_angle((GtkLabel *)label11,90);
 	label12 = gtk_label_new(_("时间(s)"));
 	entries1.DA1 = (GtkEntry*)gtk_entry_new();
 	entries1.DA2 = (GtkEntry*)gtk_entry_new();
@@ -1320,7 +1385,8 @@ gint main(gint argc, char *argv[])
 	entries1.PWM = (GtkEntry*)gtk_entry_new();
 	entries1.PWM_Duty = (GtkEntry*)gtk_entry_new();
 	entries1.PWM_DIR = (GtkEntry*)gtk_entry_new();
-	rece_view = gtk_text_view_new();
+	menubar = gtk_menu_bar_new();
+	//rece_view = gtk_text_view_new();
 	da = gtk_drawing_area_new();
 	sector = gtk_drawing_area_new();
 	num = gtk_drawing_area_new();
@@ -1381,8 +1447,7 @@ gint main(gint argc, char *argv[])
 	g_signal_connect(G_OBJECT(pre_report_button), "clicked", G_CALLBACK(on_pre_report_button_clicked), (gpointer)surface);
 
 	/* Create a menuitem to expand */
-	/* Create a menuitem to expand */
-	menubar = gtk_menu_bar_new();
+	//menubar = gtk_menu_bar_new();
 	menu1 = gtk_menu_new();
 	menu2 = gtk_menu_new();
 	menu3 = gtk_menu_new();
@@ -1457,12 +1522,13 @@ gint main(gint argc, char *argv[])
 	//gtk_window_add_accel_group(GTK_WINDOW(window), accel_group);
 	/* gtk_grid_attach (GtkGrid  *grid,GtkWidget *child,gint left,gint top,gint width,gint height); */
 
-	gtk_grid_attach(GTK_GRID(grid), menubar, 0, 0, 1200, 30);
-	
+	gtk_widget_set_size_request(menubar,1270,30);
+	gtk_box_pack_start(GTK_BOX(box), menubar, FALSE, FALSE, 1);
+	gtk_grid_attach(GTK_GRID(grid), box, 0, 0, 1200, 30);
 	gtk_grid_attach(GTK_GRID(grid), num, 0, 30, 1200, 100);
 	gtk_grid_attach(GTK_GRID(grid), label10, 400, 120, 50, 50);
 	gtk_grid_attach(GTK_GRID(grid), label11, 0, 300, 50, 10);
-	gtk_grid_attach(GTK_GRID(grid), da, 30, 160, 900-40, 500);
+	gtk_grid_attach(GTK_GRID(grid), da, 30, 160, 900-40, 450);
 	gtk_grid_attach(GTK_GRID(grid), label12, 400, 650, 50, 50);
 	gtk_grid_attach(GTK_GRID(grid), sector, 900, 200, 300, 300);
 	gtk_grid_attach(GTK_GRID(grid), conn_button, 960, 540, 70, 70);
