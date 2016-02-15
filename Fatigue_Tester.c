@@ -2,7 +2,7 @@
 *  File name:      Fatigue_Tester.c
 *  Author:         Mxin Chiang
 *  Version:        1.0
-*  Date:           01.09.2016
+*  Date:           02.03.2016
 *  Description:    Design a software accepts data sent from fatigue testing machine,
 *                  waveform presentation, recording in MySQL database,
 *                  data processing and generate pdf reports.
@@ -496,7 +496,7 @@ gint *Filter(gchar recv_data[])
 *    Description:  Database Operations
 ***************************************************************************************/
 
-gint init_db()
+gint init_db(gchar *db)
 {
 	gint err = 0;
 	MYSQL mysql;
@@ -513,7 +513,7 @@ gint init_db()
 		exit(1);
 	}
 
-	err = check_db(&mysql, DB_NAME);/* Check database */
+	err = check_db(&mysql, db);/* Check database */
 	if (err != 0)
 	{
 		g_print("create db is err!\n");
@@ -521,13 +521,25 @@ gint init_db()
 		exit(1);
 	}
 
-	if (mysql_select_db(&mysql, DB_NAME)) /* Select which db */
+	if (mysql_select_db(&mysql, db)) /* Select which db */
 	{
 		g_print("mysql_select_db:");
 		mysql_close(&mysql);
 		exit(1);
 	}
-	if ((err = check_tbl(&mysql, TABLE_NAME)) != 0)/* Check table */
+	if ((err = check_tbl(&mysql, "test_list")) != 0)/* Check table */
+	{
+		g_print("check_tbl is err!\n");
+		mysql_close(&mysql);
+		exit(1);
+	}
+	if ((err = check_tbl(&mysql, "test_data")) != 0)/* Check table */
+	{
+		g_print("check_tbl is err!\n");
+		mysql_close(&mysql);
+		exit(1);
+	}
+	if ((err = check_tbl(&mysql, "test_result")) != 0)/* Check table */
 	{
 		g_print("check_tbl is err!\n");
 		mysql_close(&mysql);
@@ -558,6 +570,11 @@ gint check_db(MYSQL *mysql, gchar *db_name)
 	}
 	if (!row) /* Build database if no this database */
 	{
+		if (mysql_query(mysql, "SET NAMES utf8;"))
+		{
+			g_print("Query failed (%s)\n", mysql_error(mysql));
+			exit(1);
+		}
 		char buf[128] = { 0 };
 		strcpy(buf, "CREATE DATABASE ");
 		strcat(buf, db_name);
@@ -594,9 +611,22 @@ gint check_tbl(MYSQL* mysql, gchar *name)
 	{
 		char buf[1024] = { 0 };
 		char qbuf[1024] = { 0 };
-		snprintf(buf, sizeof(buf), "%s (SN INT(10) AUTO_INCREMENT NOT NULL,pulse1 DOUBLE(16,4),pulse2 DOUBLE(16,4),pulse3 DOUBLE(16,4),AD1 DOUBLE(16,4),AD2 DOUBLE(16,4),AD3 DOUBLE(16,4),AD4 DOUBLE(16,4),DI DOUBLE(16,4),PRIMARY KEY (SN));", TABLE_NAME);
-		//snprintf(buf,sizeof(buf),"%s (SN INT(10) AUTO_INCREMENT NOT NULL,pulse1 INT(10),pulse2 INT(10),pulse3 INT(10),AD1 INT(10),AD2 INT(10),AD3 INT(10),AD4 INT(10),DI INT(10),PRIMARY KEY (SN));",TABLE_NAME);
-		//		        strcpy(qbuf,"CREATE TABLE ");
+		if(strcmp("test_list", name) == 0)
+		{
+			snprintf(buf, sizeof(buf), "%s (test_no VARCHAR(20),date VARCHAR(20),temp VARCHAR(20),name VARCHAR(20),shape VARCHAR(20),width VARCHAR(20),thick VARCHAR(20),span VARCHAR(20),batch VARCHAR(20),PRIMARY KEY (test_no));", "test_list");
+			//snprintf(buf, sizeof(buf), "%s (SN INT(10) AUTO_INCREMENT NOT NULL,test_no VARCHAR(20),date VARCHAR(20),temp VARCHAR(20),name VARCHAR(20),shape VARCHAR(20),width VARCHAR(20),thick VARCHAR(20),span VARCHAR(20),batch VARCHAR(20),PRIMARY KEY (SN));", "test_list");
+		}
+		if(strcmp("test_data", name) == 0)
+		{
+			snprintf(buf, sizeof(buf), "%s (SN INT(10) AUTO_INCREMENT NOT NULL,test_no VARCHAR(20),pulse1 DOUBLE(16,4),pulse2 DOUBLE(16,4),pulse3 DOUBLE(16,4),AD1 DOUBLE(16,4),AD2 DOUBLE(16,4),AD3 DOUBLE(16,4),AD4 DOUBLE(16,4),DI DOUBLE(16,4),PRIMARY KEY (SN));", "test_data");
+			//snprintf(buf,sizeof(buf),"%s (SN INT(10) AUTO_INCREMENT NOT NULL,pulse1 INT(10),pulse2 INT(10),pulse3 INT(10),AD1 INT(10),AD2 INT(10),AD3 INT(10),AD4 INT(10),DI INT(10),PRIMARY KEY (SN));",TABLE_NAME);
+			//		        strcpy(qbuf,"CREATE TABLE ");
+		}
+		if(strcmp("test_result", name) == 0)
+		{
+			//Fbb,Rbb,mE
+			snprintf(buf, sizeof(buf), "%s (SN INT(10) AUTO_INCREMENT NOT NULL,test_no VARCHAR(20),Fbb DOUBLE(16,4),Rbb DOUBLE(16,4),mE DOUBLE(16,4),PRIMARY KEY (SN));", "test_result");
+		}
 		strcpy(qbuf, "CREATE TABLE ");
 		strcat(qbuf, buf);
 		if (mysql_query(mysql, qbuf))
@@ -608,16 +638,97 @@ gint check_tbl(MYSQL* mysql, gchar *name)
 	return 0;
 }
 
-void send_to_mysql(gdouble rcvd_mess[])
+void send_to_mysql_list()
 {
 	gchar sql_insert[200];
 	MYSQL my_connection;
 	gint res;
 
 	mysql_init(&my_connection);
-	if (mysql_real_connect(&my_connection, SERVER_HOST, SERVER_USER, SERVER_PWD, DB_NAME, 0, NULL, 0))
+	if (mysql_real_connect(&my_connection, SERVER_HOST, SERVER_USER, SERVER_PWD, "test_db", 0, NULL, 0))
 	{
-		sprintf(sql_insert, "INSERT INTO mytables(pulse1,pulse2,pulse3,AD1,AD2,AD3,AD4,DI) VALUES('%.6lf','%.6lf','%.6lf','%.6lf','%.6lf','%.6lf','%.6lf','%.6lf')", rcvd_mess[0], rcvd_mess[1], rcvd_mess[2], rcvd_mess[3], rcvd_mess[4], rcvd_mess[5], rcvd_mess[6], rcvd_mess[7]);
+		sprintf(sql_insert, "INSERT INTO test_list (test_no,date,temp,name,shape,width,thick,span,batch) VALUES('%s','%s','%s','%s','%s','%s','%s','%s','%s')",
+				(gchar *)gtk_entry_get_text(entries.num),
+				(gchar *)gtk_entry_get_text(entries.time),
+				(gchar *)gtk_entry_get_text(entries.temp),
+				(gchar *)gtk_entry_get_text(entries.name),
+				(gchar *)gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(entries.combo)),
+				(gchar *)gtk_entry_get_text(entries.outer),
+				(gchar *)gtk_entry_get_text(entries.thick),
+				(gchar *)gtk_entry_get_text(entries.span),
+				(gchar *)gtk_entry_get_text(entries.batch));
+		g_print("%s\n",sql_insert);
+		res = mysql_query(&my_connection, _(sql_insert));
+
+		if (!res)
+		{
+			//g_print("Inserted %lu rows\n", (unsigned long)mysql_affected_rows(&my_connection));
+		}
+		else
+		{
+			fprintf(stderr, "Insert error %d: %s\n", mysql_errno(&my_connection),
+				mysql_error(&my_connection));
+		}
+		mysql_close(&my_connection);
+	}
+	else
+	{
+		if (mysql_errno(&my_connection))
+		{
+			fprintf(stderr, "Connection error %d: %s\n",
+				mysql_errno(&my_connection), mysql_error(&my_connection));
+		}
+	}
+}
+
+void send_to_mysql_data(gdouble rcvd_mess[])
+{
+	gchar sql_insert[200];
+	MYSQL my_connection;
+	gint res;
+
+	mysql_init(&my_connection);
+	if (mysql_real_connect(&my_connection, SERVER_HOST, SERVER_USER, SERVER_PWD, "test_db", 0, NULL, 0))
+	{
+		sprintf(sql_insert, "INSERT INTO test_data (test_no,pulse1,pulse2,pulse3,AD1,AD2,AD3,AD4,DI) VALUES('%s','%.6lf','%.6lf','%.6lf','%.6lf','%.6lf','%.6lf','%.6lf','%.6lf')", gtk_entry_get_text(entries.num),rcvd_mess[0], rcvd_mess[1], rcvd_mess[2], rcvd_mess[3], rcvd_mess[4], rcvd_mess[5], rcvd_mess[6], rcvd_mess[7]);
+		res = mysql_query(&my_connection, sql_insert);
+		if (!res)
+		{
+			//g_print("Inserted %lu rows\n", (unsigned long)mysql_affected_rows(&my_connection));
+		}
+		else
+		{
+			fprintf(stderr, "Insert error %d: %s\n", mysql_errno(&my_connection),
+				mysql_error(&my_connection));
+		}
+		mysql_close(&my_connection);
+	}
+	else
+	{
+		if (mysql_errno(&my_connection))
+		{
+			fprintf(stderr, "Connection error %d: %s\n",
+				mysql_errno(&my_connection), mysql_error(&my_connection));
+		}
+	}
+}
+
+void send_to_mysql_result()
+{
+	gchar sql_insert[200];
+	MYSQL my_connection;
+	gint res;
+
+	mysql_init(&my_connection);
+	if (mysql_real_connect(&my_connection, SERVER_HOST, SERVER_USER, SERVER_PWD, "test_db", 0, NULL, 0))
+	{
+        /* 设置数据库默认字符集 */ 
+        //if (mysql_set_character_set( &my_connection, "utf8")) 
+	//{ 
+        //    fprintf (stderr , "错误, %s/n" , mysql_error( &my_connection) ) ; 
+        //} 
+		sprintf(sql_insert, "INSERT INTO test_result (test_no,Fbb,Rbb,mE) VALUES('%s','%.6lf','%.6lf','%.6lf')",
+				gtk_entry_get_text(entries.num),Fbb_data,Rbb_data,mE_data);
 		res = mysql_query(&my_connection, sql_insert);
 
 		if (!res)
@@ -1275,7 +1386,7 @@ void socket_msg_handle(gint fd, socket_msg *msg, void *args)
 	bufferIn[5] = AD3;
 	bufferIn[6] = AD4;
 	bufferIn[7] = DI;
-	//send_to_mysql(bufferIn); /* Record in the database */
+	send_to_mysql_data(bufferIn); /* Record in the database */
 #ifdef wei
 	AD1 = ((gdouble)((msg->data[13] & 0x7f) << 16 | msg->data[14] << 8 | msg->data[15]) / (gdouble)0x7fffff) * 2.5;
 	AD2 = ((gdouble)((msg->data[17] & 0x7f) << 16 | msg->data[18] << 8 | msg->data[19]) / (gdouble)0x7fffff) * 2.5;
@@ -1445,10 +1556,11 @@ void on_button1_clicked(GtkButton *button, gpointer user_data)
 		g_print("Connect Failure... \n");
 	else
 	{
-		//init_db();
+		init_db("test_db");
 		g_print("Connect Successful... \n");
 		issucceed = 0;
 	}
+	send_to_mysql_list();
 	start = TRUE;
 }
 
@@ -1467,6 +1579,8 @@ void on_report_button_clicked(GtkButton *button, gpointer user_data)
 	gint j = 0, x_o;
 	gchar c[8];
 	gint recv[8];
+
+	send_to_mysql_result();
 
 	report_surface = cairo_pdf_surface_create("HelloWorld.pdf", 595.28, 765.35);
 	cr = cairo_create(report_surface);
