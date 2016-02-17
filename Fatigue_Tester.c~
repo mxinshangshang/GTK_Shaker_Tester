@@ -1191,7 +1191,7 @@ draw_callback3(GtkWidget *widget,
 	cairo_set_source_rgb(cr, 0.2, 1, 1);
 	cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
 	cairo_set_font_size(cr, 50.0);
-	cairo_move_to(cr, width / 4 - 190, height - 30);
+	cairo_move_to(cr, width / 4 - 170, height - 30);
 #ifdef _LINUX_
 	sprintf(c, "%.2f", AD1);
 #endif
